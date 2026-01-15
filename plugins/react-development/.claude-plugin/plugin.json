@@ -1,0 +1,13 @@
+{
+  "name": "react-development",
+  "version": "1.0.0",
+  "description": "Comprehensive React development with hooks, components, state management, context, effects, and performance optimization.",
+  "author": {
+    "name": "Ankur Jain",
+    "email": "ankurjain1121@gmail.com"
+  },
+  "homepage": "https://github.com/Ankurjain1121/dev-workflow-skills",
+  "repository": "https://github.com/Ankurjain1121/dev-workflow-skills",
+  "license": "MIT",
+  "keywords": ["react", "hooks", "state-management", "frontend", "components"]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "brutal-review",
+  "version": "1.0.0",
+  "description": "Zero-tolerance multi-agent code review with 5 specialized agents for security, architecture, quality, performance, and style.",
+  "author": {
+    "name": "Ankur Jain",
+    "email": "ankurjain1121@gmail.com"
+  },
+  "homepage": "https://github.com/Ankurjain1121/dev-workflow-skills",
+  "repository": "https://github.com/Ankurjain1121/dev-workflow-skills",
+  "license": "MIT",
+  "keywords": ["code-review", "security", "quality", "multi-agent", "automation"]
+}

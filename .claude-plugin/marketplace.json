@@ -1,0 +1,48 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "dev-workflow-skills",
+  "version": "1.0.0",
+  "description": "Production-ready skills for development workflows - orchestration, code review, design, and more",
+  "owner": {
+    "name": "Ankur Jain",
+    "email": "ankurjain1121@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "orchestrate",
+      "description": "Multi-agent parallel execution with file ownership",
+      "source": "./plugins/orchestrate",
+      "category": "development"
+    },
+    {
+      "name": "brutal-review",
+      "description": "Zero-tolerance multi-agent code review",
+      "source": "./plugins/brutal-review",
+      "category": "code-quality"
+    },
+    {
+      "name": "design",
+      "description": "Complete design thinking pipeline for UIs",
+      "source": "./plugins/design",
+      "category": "design"
+    },
+    {
+      "name": "react-development",
+      "description": "Comprehensive React with hooks and state management",
+      "source": "./plugins/react-development",
+      "category": "development"
+    },
+    {
+      "name": "frontend-design",
+      "description": "Production-grade frontend interfaces",
+      "source": "./plugins/frontend-design",
+      "category": "design"
+    },
+    {
+      "name": "framework-dev",
+      "description": "Project framework orchestrator (6-phase workflow)",
+      "source": "./plugins/framework-dev",
+      "category": "planning"
+    }
+  ]
+}

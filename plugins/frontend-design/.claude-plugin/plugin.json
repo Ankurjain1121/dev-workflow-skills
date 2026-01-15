@@ -1,0 +1,13 @@
+{
+  "name": "frontend-design",
+  "version": "1.0.0",
+  "description": "Create distinctive, production-grade frontend interfaces with high design quality. Anti-slop rules for polished code.",
+  "author": {
+    "name": "Ankur Jain",
+    "email": "ankurjain1121@gmail.com"
+  },
+  "homepage": "https://github.com/Ankurjain1121/dev-workflow-skills",
+  "repository": "https://github.com/Ankurjain1121/dev-workflow-skills",
+  "license": "MIT",
+  "keywords": ["frontend", "design", "ui", "production", "components"]
+}

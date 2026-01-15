@@ -1,0 +1,13 @@
+{
+  "name": "design",
+  "version": "1.0.0",
+  "description": "Complete design thinking pipeline for UIs. Transforms ideas into PRDs, runs 9-pass UX analysis, and iterates based on feedback.",
+  "author": {
+    "name": "Ankur Jain",
+    "email": "ankurjain1121@gmail.com"
+  },
+  "homepage": "https://github.com/Ankurjain1121/dev-workflow-skills",
+  "repository": "https://github.com/Ankurjain1121/dev-workflow-skills",
+  "license": "MIT",
+  "keywords": ["design", "ux", "ui", "prd", "design-thinking"]
+}
