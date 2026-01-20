@@ -1,12 +1,57 @@
 ---
 name: fix-extreme
-description: Zero-tolerance code quality enforcement with parallel specialized agents
+description: Fast build-focused code quality enforcement. Fixes only BLOCKING errors using parallel agents. Supports monorepos (Turbo/Nx/pnpm) with affected-only scanning.
 allowed-tools: Bash, Read, Edit, Write, Glob, Grep, Task, TodoWrite
 ---
 
 # Fix Extreme - Zero Tolerance Mode
 
 A ruthless code quality enforcement skill that spawns specialized parallel agents to fix ALL blocking errors. No mercy, no warnings-only passes.
+
+## Step 0: Performance Cache Check
+
+**Run FIRST before any quality checks:**
+
+```bash
+# Calculate hash of source files
+CURRENT_HASH=$(find src -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" 2>/dev/null | xargs sha256sum 2>/dev/null | sha256sum | cut -d' ' -f1)
+CACHE_FILE=".fix-extreme-cache"
+
+if [ -f "$CACHE_FILE" ] && [ "$(cat $CACHE_FILE)" = "$CURRENT_HASH" ]; then
+  echo "=== CACHE HIT - Already clean, no changes since last run ==="
+  exit 0
+fi
+```
+
+If cache hit, report success and STOP. Otherwise, continue to Step 0.5.
+
+## Step 0.5: Detect Monorepo
+
+Check for monorepo tools and use affected-only commands for SPEED:
+
+```
+IF turbo.json EXISTS:
+  MONOREPO="turbo"
+  TYPE_CMD="turbo run type-check --filter=[origin/main...HEAD]"
+  LINT_CMD="turbo run lint --filter=[origin/main...HEAD]"
+
+ELSE IF nx.json EXISTS:
+  MONOREPO="nx"
+  TYPE_CMD="nx affected -t type-check --parallel=4"
+  LINT_CMD="nx affected -t lint --parallel=4"
+
+ELSE IF pnpm-workspace.yaml EXISTS:
+  MONOREPO="pnpm"
+  TYPE_CMD="pnpm -r --filter='...[origin/main]' run type-check"
+  LINT_CMD="pnpm -r --filter='...[origin/main]' run lint"
+
+ELSE:
+  MONOREPO="none"
+  TYPE_CMD="npm run type-check"
+  LINT_CMD="npm run lint"
+```
+
+Use the detected commands in Step 1 instead of the default npm commands.
 
 ## Step 1: Run All Quality Checks
 
@@ -51,6 +96,24 @@ A fix is ONLY valid if the error is:
 - Style suggestions without actual errors
 - "Could be better" recommendations
 - Working code that just isn't pretty
+
+## Step 3.5: Security Scan (Critical Only)
+
+**ONLY scan for vulnerabilities that BLOCK the build or cause runtime failures:**
+
+```bash
+# Semgrep with ERROR severity only
+semgrep scan --config "p/security-audit" --severity ERROR --json 2>&1 || true
+```
+
+Parse output for CRITICAL issues:
+- SQL injection in production code
+- Command injection
+- Path traversal
+- Hardcoded secrets (if CI fails on them)
+
+IF CRITICAL_SECURITY_ERRORS > 0:
+  Add to error categories, spawn security-fixer agent in Step 4
 
 ## Step 4: Spawn Parallel Fixer Agents
 
@@ -137,6 +200,27 @@ prompt: |
   Applied: Corrected import from X to Y
 ```
 
+### Agent: Security Fixer (if CRITICAL security errors > 0)
+```
+subagent_type: general-purpose
+prompt: |
+  You are a CRITICAL security vulnerability specialist.
+
+  ERRORS TO FIX:
+  [PASTE CRITICAL SECURITY ERRORS]
+
+  RULES:
+  1. ONLY fix vulnerabilities that BLOCK build or cause runtime failures
+  2. Parameterize SQL queries
+  3. Sanitize shell command inputs
+  4. Fix path traversal issues
+  5. Remove hardcoded secrets if CI checks for them
+
+  OUTPUT FORMAT:
+  [FIXED] file:line - Vulnerability type
+  Applied: What you changed
+```
+
 ## Step 5: Verify All Fixes
 
 After ALL agents complete, run the FULL check again:
@@ -154,6 +238,12 @@ npx prettier --check "src/**/*.{ts,tsx,js,jsx}" 2>&1
 
 ### If all pass:
 - Report success with summary
+- Save cache hash for next run:
+
+```bash
+# Save cache hash for next run
+echo "$CURRENT_HASH" > .fix-extreme-cache
+```
 
 ## Output Format
 
@@ -189,4 +279,19 @@ Verdict: CLEAN | PARTIAL (list unfixed) | FAILED (critical remaining)
 npm run type-check    # TypeScript
 npm run lint          # ESLint
 npx prettier --check "src/**/*.{ts,tsx,js,jsx}"  # Prettier
+```
+
+## Monorepo Quick Reference
+
+| Tool | Affected-Only Lint Command |
+|------|---------------------------|
+| Turborepo | `turbo run lint --filter=[origin/main...HEAD]` |
+| Nx | `nx affected -t lint --parallel=4` |
+| pnpm | `pnpm -r --filter='...[origin/main]' run lint` |
+
+## Cache Management
+
+```bash
+# Clear cache to force full re-scan
+rm .fix-extreme-cache
 ```

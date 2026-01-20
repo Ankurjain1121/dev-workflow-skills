@@ -1,0 +1,203 @@
+# GitHub Actions: Fix-Hard Full Quality Gate
+# This template implements the complete /fix-hard quality enforcement
+
+name: Full Quality Gate
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Weekly full scan on Sundays at midnight
+    - cron: '0 0 * * 0'
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ============================================
+  # Stage 1: Type Checking (Strict Mode)
+  # ============================================
+  type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: TypeScript Strict Check
+        run: npx tsc --noEmit --strict
+
+  # ============================================
+  # Stage 2: Linting (Zero Warnings)
+  # ============================================
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: ESLint (Zero Warnings)
+        run: npm run lint -- --max-warnings 0
+
+      - name: Check for Suppressions
+        run: |
+          SUPPRESSIONS=$(grep -rn "@ts-ignore\|@ts-expect-error\|eslint-disable" --include="*.ts" --include="*.tsx" src/ 2>/dev/null | wc -l || echo 0)
+          echo "Found $SUPPRESSIONS suppression comments"
+          if [ "$SUPPRESSIONS" -gt 0 ]; then
+            echo "⚠️ Warning: Suppression comments found. Review required."
+            grep -rn "@ts-ignore\|@ts-expect-error\|eslint-disable" --include="*.ts" --include="*.tsx" src/ || true
+          fi
+
+  # ============================================
+  # Stage 3: Formatting
+  # ============================================
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Prettier Check
+        run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,css,md}"
+
+  # ============================================
+  # Stage 4: Security Scan (Comprehensive)
+  # ============================================
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Semgrep Security Scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/owasp-top-ten
+            p/secrets
+
+      - name: npm audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+  # ============================================
+  # Stage 5: Tests
+  # ============================================
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Run Tests
+        run: npm test -- --coverage
+
+      - name: Upload Coverage
+        uses: codecov/codecov-action@v3
+        with:
+          fail_ci_if_error: false
+
+  # ============================================
+  # Stage 6: Mutation Testing (Weekly Only)
+  # ============================================
+  mutation:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    needs: [type-check, lint, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Stryker Mutation Testing
+        run: |
+          npx stryker run --incremental
+        continue-on-error: true
+
+      - name: Upload Mutation Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: reports/mutation/
+
+  # ============================================
+  # Stage 7: Build
+  # ============================================
+  build:
+    runs-on: ubuntu-latest
+    needs: [type-check, lint, format, security, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: dist/
+
+  # ============================================
+  # Summary Job
+  # ============================================
+  quality-gate:
+    runs-on: ubuntu-latest
+    needs: [type-check, lint, format, security, test, build]
+    if: always()
+    steps:
+      - name: Quality Gate Summary
+        run: |
+          echo "## Quality Gate Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Type Check | ${{ needs.type-check.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint | ${{ needs.lint.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Format | ${{ needs.format.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security | ${{ needs.security.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tests | ${{ needs.test.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ needs.build.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check Results
+        if: contains(needs.*.result, 'failure')
+        run: |
+          echo "❌ Quality gate failed!"
+          exit 1
