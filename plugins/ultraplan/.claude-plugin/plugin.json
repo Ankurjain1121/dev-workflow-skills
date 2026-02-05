@@ -1,0 +1,22 @@
+{
+  "name": "ultraplan",
+  "description": "Single-command planning system that transforms plain-English ideas into AI-executable implementation plans through exhaustive discovery, parallel research, structured planning, self-review, and traceability validation.",
+  "version": "1.0.0",
+  "author": {
+    "name": "UltraPlan Contributors",
+    "url": "https://github.com/ultraplan"
+  },
+  "repository": "https://github.com/ultraplan/ultraplan",
+  "license": "MIT",
+  "keywords": ["planning", "prd", "requirements", "discovery", "research", "tdd", "no-code"],
+  "skills": {
+    "ultraplan": "skills/ultraplan/SKILL.md"
+  },
+  "agents": {
+    "codebase-researcher": "agents/codebase-researcher.md",
+    "web-researcher": "agents/web-researcher.md",
+    "docs-researcher": "agents/docs-researcher.md",
+    "section-writer": "agents/section-writer.md"
+  },
+  "hooks": "hooks/hooks.json"
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "ultraplan-plugins",
+  "description": "Claude Code plugins by UltraPlan Contributors",
+  "version": "1.0.0",
+  "owner": {
+    "name": "UltraPlan Contributors",
+    "url": "https://github.com/ultraplan"
+  },
+  "plugins": [
+    {
+      "name": "ultraplan",
+      "description": "Single-command planning system that transforms plain-English ideas into AI-executable implementation plans through exhaustive discovery, parallel research, structured planning, self-review, and traceability validation.",
+      "version": "1.0.0",
+      "author": {
+        "name": "UltraPlan Contributors",
+        "url": "https://github.com/ultraplan"
+      },
+      "source": "./",
+      "category": "development",
+      "homepage": "https://github.com/ultraplan/ultraplan",
+      "tags": ["planning", "prd", "requirements", "no-code", "discovery", "research", "tdd", "project-management"]
+    }
+  ]
+}

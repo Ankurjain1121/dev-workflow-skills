@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"try { const fs = require('fs'); const path = require('path'); const statePath = path.join(process.cwd(), '.ultraplan', 'STATE.md'); if (!fs.existsSync(statePath)) { console.log('UltraPlan: No existing state found, fresh session'); process.exit(0); } const content = fs.readFileSync(statePath, 'utf8'); const rawId = (process.env.CLAUDE_SESSION_ID || 'unknown').replace(/[^a-zA-Z0-9_-]/g, ''); const lines = content.split('\\n'); let updated = false; const newLines = lines.map(function(line) { if (line.startsWith('Session ID:')) { updated = true; return 'Session ID: ' + rawId; } return line; }); if (!updated) { newLines.splice(2, 0, 'Session ID: ' + rawId); } fs.writeFileSync(statePath, newLines.join('\\n'), 'utf8'); console.log('UltraPlan: Resumed session, STATE.md updated with session ' + rawId); } catch (err) { console.error('UltraPlan SessionStart hook error: ' + err.message); }\""
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"try { const fs = require('fs'); const path = require('path'); const statePath = path.join(process.cwd(), '.ultraplan', 'STATE.md'); if (!fs.existsSync(statePath)) { console.log('UltraPlan: No STATE.md to update on session end'); process.exit(0); } const content = fs.readFileSync(statePath, 'utf8'); const now = new Date().toISOString().split('T')[0]; const updated = content.replace(/Last activity:.*/, 'Last activity: ' + now + ' - Session ended'); fs.writeFileSync(statePath, updated, 'utf8'); console.log('UltraPlan: STATE.md updated with session end timestamp'); } catch (err) { console.error('UltraPlan SessionEnd hook error: ' + err.message); }\""
+          }
+        ]
+      }
+    ]
+  }
+}

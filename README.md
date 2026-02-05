@@ -12,6 +12,7 @@ A curated collection of Claude Code plugins for development workflows - orchestr
 | **[react-development](./plugins/react-development)** | Comprehensive React with hooks and state management | Development |
 | **[frontend-design](./plugins/frontend-design)** | Production-grade frontend interfaces | Design |
 | **[framework-dev](./plugins/framework-dev)** | Project framework orchestrator (6-phase workflow) | Planning |
+| **[ultraplan](./plugins/ultraplan)** | Single-command planning: plain-English ideas → AI-executable plans | Planning |
 
 ## Installation
 
@@ -33,7 +34,8 @@ Add to your `~/.claude/settings.json`:
     "dev-workflow-skills@design": true,
     "dev-workflow-skills@react-development": true,
     "dev-workflow-skills@frontend-design": true,
-    "dev-workflow-skills@framework-dev": true
+    "dev-workflow-skills@framework-dev": true,
+    "dev-workflow-skills@ultraplan": true
   }
 }
 ```
@@ -95,6 +97,17 @@ Create distinctive, polished code that avoids generic AI aesthetics. Anti-slop r
 
 ```bash
 /framework-dev "Help me plan my new SaaS project"
+```
+
+### ultraplan
+**Single-command planning: plain-English ideas → AI-executable plans**
+
+6-phase pipeline: Understand (40-70 discovery questions) → Research (3 parallel agents) → Plan (PRD + technical plan with XML tasks) → Review (8-category checklist) → Validate (traceability matrix) → Output. Designed for no-coders.
+
+```bash
+/ultraplan "Build a task management app with team features"
+/ultraplan update   # Non-destructive update of affected sections
+/ultraplan status   # Show current progress
 ```
 
 ## Requirements

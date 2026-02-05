@@ -1,0 +1,50 @@
+{
+  "discovery": {
+    "min_questions": 40,
+    "max_questions": 70,
+    "batch_size": 4,
+    "categories": 9,
+    "auto_followup": true,
+    "codebase_detection": true
+  },
+  "research": {
+    "parallel_subagents": 3,
+    "web_search": true,
+    "context7": true,
+    "codebase_scan": true,
+    "competitor_analysis": true
+  },
+  "plan": {
+    "prd_language": "plain_english",
+    "section_approval": "incremental",
+    "tdd_stubs": true,
+    "risk_assessment": true,
+    "task_granularity": "atomic",
+    "xml_tasks": true,
+    "dependency_ordering": true,
+    "parallel_batches": true
+  },
+  "review": {
+    "checklist_categories": 8,
+    "refinement_questions": {
+      "min": 5,
+      "max": 10
+    },
+    "show_changes": true
+  },
+  "validate": {
+    "traceability_matrix": true,
+    "flag_missing_requirements": true,
+    "flag_scope_creep": true
+  },
+  "output": {
+    "directory": ".ultraplan",
+    "summary_cheatsheet": true,
+    "state_management": true,
+    "auto_resume": true
+  },
+  "progress": {
+    "show_indicator": true,
+    "format": "Phase {n}/6: {name} [{bar}] {pct}%"
+  }
+}
