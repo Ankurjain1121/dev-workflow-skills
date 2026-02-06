@@ -1,5 +1,7 @@
 ---
-description: Use this skill during Phase 2 (Structure) to select appropriate architecture patterns. Covers MVC, Hexagonal, Clean Architecture, Microservices, and provides decision criteria for each.
+name: architecture-patterns
+description: Use when selecting architecture patterns (MVC, hexagonal, clean, microservices) for a new project.
+allowed-tools: Read, Write, WebSearch
 ---
 
 # Architecture Patterns for Framework Development
@@ -146,55 +148,13 @@ src/
 - Can feel over-engineered for simple apps
 - Learning curve
 
-**Example Structure:**
-```
-src/
-├── domain/                 # Core business logic
-│   ├── entities/
-│   │   └── User.ts
-│   ├── services/
-│   │   └── UserService.ts
-│   └── ports/              # Interfaces
-│       ├── UserRepository.ts
-│       └── NotificationService.ts
-├── adapters/
-│   ├── primary/            # Driving adapters
-│   │   ├── rest/
-│   │   │   └── UserController.ts
-│   │   └── cli/
-│   └── secondary/          # Driven adapters
-│       ├── persistence/
-│       │   └── PostgresUserRepository.ts
-│       └── notification/
-│           └── EmailNotificationService.ts
-└── config/
-    └── dependencies.ts     # Dependency injection
-```
+**Example Structure:** See `references/pattern-examples.md` for the complete directory structure showing domain (entities, services, ports) and adapters (primary/driving and secondary/driven) with dependency injection configuration.
 
 ---
 
 ### Clean Architecture
 
-```
-┌─────────────────────────────────────────────┐
-│              Frameworks & Drivers           │
-│   (Web, DB, External Interfaces)            │
-│  ┌───────────────────────────────────────┐  │
-│  │         Interface Adapters            │  │
-│  │   (Controllers, Presenters, Gateways) │  │
-│  │  ┌─────────────────────────────────┐  │  │
-│  │  │      Application Business       │  │  │
-│  │  │         (Use Cases)             │  │  │
-│  │  │  ┌───────────────────────────┐  │  │  │
-│  │  │  │   Enterprise Business     │  │  │  │
-│  │  │  │      (Entities)           │  │  │  │
-│  │  │  └───────────────────────────┘  │  │  │
-│  │  └─────────────────────────────────┘  │  │
-│  └───────────────────────────────────────┘  │
-└─────────────────────────────────────────────┘
-
-Dependencies point INWARD only.
-```
+See `references/pattern-examples.md` for the complete layer diagram. Clean Architecture uses concentric circles with dependencies pointing inward: Frameworks & Drivers (outermost) → Interface Adapters → Application Business (Use Cases) → Enterprise Business (Entities, innermost).
 
 **When to Use:**
 - Complex business rules
@@ -258,24 +218,7 @@ Dependencies point INWARD only.
 
 ### Modular Monolith
 
-```
-┌────────────────────────────────────────┐
-│           Single Deployable            │
-│  ┌──────────┐ ┌──────────┐ ┌────────┐  │
-│  │  Users   │ │  Orders  │ │Payment │  │
-│  │  Module  │ │  Module  │ │ Module │  │
-│  │          │ │          │ │        │  │
-│  │ ┌──────┐ │ │ ┌──────┐ │ │┌──────┐│  │
-│  │ │Domain│ │ │ │Domain│ │ ││Domain││  │
-│  │ └──────┘ │ │ └──────┘ │ │└──────┘│  │
-│  │ ┌──────┐ │ │ ┌──────┐ │ │┌──────┐│  │
-│  │ │ API  │ │ │ │ API  │ │ ││ API  ││  │
-│  │ └──────┘ │ │ └──────┘ │ │└──────┘│  │
-│  └──────────┘ └──────────┘ └────────┘  │
-│                                        │
-│           Shared Infrastructure        │
-└────────────────────────────────────────┘
-```
+See `references/pattern-examples.md` for the structure diagram. Single deployable with independent modules (Users, Orders, Payment) each containing domain logic and API layer, sharing common infrastructure while maintaining clear boundaries.
 
 **When to Use:**
 - Growing application

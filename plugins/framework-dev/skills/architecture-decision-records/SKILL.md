@@ -1,5 +1,7 @@
 ---
-description: Use this skill when documenting architectural decisions during framework planning. Provides ADR templates, numbering schemes, and integration with the decisions log.
+name: architecture-decision-records
+description: Use when documenting architectural decisions, comparing technology options, or recording rationale for framework choices.
+allowed-tools: Read, Write, WebSearch
 ---
 
 # Architecture Decision Records (ADRs)

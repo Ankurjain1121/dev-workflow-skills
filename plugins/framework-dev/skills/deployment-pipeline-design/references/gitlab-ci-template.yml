@@ -1,0 +1,85 @@
+# .gitlab-ci.yml
+stages:
+  - build
+  - test
+  - security
+  - staging
+  - production
+
+variables:
+  NODE_VERSION: "20"
+
+default:
+  image: node:${NODE_VERSION}
+  cache:
+    paths:
+      - node_modules/
+
+build:
+  stage: build
+  script:
+    - npm ci
+    - npm run lint
+    - npm run type-check
+    - npm run build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 hour
+
+test:unit:
+  stage: test
+  script:
+    - npm ci
+    - npm run test:unit -- --coverage
+  coverage: '/Lines\s*:\s*(\d+\.\d+)%/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+
+test:integration:
+  stage: test
+  services:
+    - postgres:15
+    - redis:7
+  variables:
+    DATABASE_URL: "postgresql://postgres:postgres@postgres/test"
+    REDIS_URL: "redis://redis:6379"
+  script:
+    - npm ci
+    - npm run test:integration
+
+security:audit:
+  stage: security
+  script:
+    - npm audit --audit-level=high
+  allow_failure: true
+
+security:sast:
+  stage: security
+  image: returntocorp/semgrep
+  script:
+    - semgrep --config=auto .
+
+deploy:staging:
+  stage: staging
+  environment:
+    name: staging
+    url: https://staging.example.com
+  script:
+    - echo "Deploying to staging..."
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+deploy:production:
+  stage: production
+  environment:
+    name: production
+    url: https://example.com
+  script:
+    - echo "Deploying to production..."
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  when: manual

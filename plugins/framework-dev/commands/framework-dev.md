@@ -1,6 +1,6 @@
 ---
 description: Start the Framework Developer Orchestrator to plan and architect a new project through structured 6-phase discussion with blueprint generation
-argument-hint: "[project description or 'resume' to continue previous session]"
+argument-hint: "[project description] [--solo] [--from-ultraplan] ['resume']"
 allowed-tools: WebSearch, WebFetch, Read, Write, Glob, Grep, Bash, AskUserQuestion, Task, TodoWrite, Skill
 ---
 
@@ -15,7 +15,7 @@ I'll help you plan your project through 6 phases, creating comprehensive bluepri
 | **1** | Discovery | Vision, outline, architecture diagrams |
 | **2** | Structure | Module hierarchy, dependencies, risks |
 | **3** | Planning | API contracts, coding sequence |
-| **4** | Agents | LLM assignments, tailored prompts |
+| **4** | Agents | LLM assignments, tailored prompts *(skip with --solo)* |
 | **5** | Execution | Handoffs, progress tracking |
 | **6** | Integration | Final report, deployment checklist |
 
@@ -73,17 +73,26 @@ I'll check for `.framework-blueprints/00-project-state.json` to find your previo
 # Start new project
 /framework-dev I want to build a task management app for remote teams
 
+# Solo mode (skip multi-agent assignment)
+/framework-dev --solo Build an API server for my personal project
+
+# Import from UltraPlan (reads .ultraplan/ directory, skips questions)
+/framework-dev --from-ultraplan
+
 # Resume previous session
 /framework-dev resume
 
-# Start with specific focus
-/framework-dev Build an e-commerce platform with offline-first mobile app
+# Quick plan (use /plan for lighter workflow)
+/plan Build a bookmark manager with tagging
 ```
 
 ## Related Commands
 
+- `/plan` - Quick 3-step planning for smaller projects
 - `/checkpoint` - Refresh context from blueprint files
 - `/checkpoint full` - Full re-read of all blueprints + recent source files
+- `/validate` - Check blueprints against implementation
+- `/export` - Export blueprints to PDF/HTML/Markdown
 
 ---
 

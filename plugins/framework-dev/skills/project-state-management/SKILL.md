@@ -1,5 +1,7 @@
 ---
-description: Use this skill to track and persist project state across sessions. Provides state file schema, checkpointing protocols, and context recovery procedures for the Framework Developer Orchestrator.
+name: project-state-management
+description: Use when initializing, updating, or resuming project state with checkpointing.
+allowed-tools: Read, Write, Glob, Grep
 ---
 
 # Project State Management Skill

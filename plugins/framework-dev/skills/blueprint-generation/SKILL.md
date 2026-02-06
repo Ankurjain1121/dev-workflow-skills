@@ -1,10 +1,16 @@
 ---
-description: Use this skill to create and maintain blueprint files across all 6 phases of framework development. Provides templates, naming conventions, and directory structure guidance.
+name: blueprint-generation
+description: Use when creating or updating blueprint files in .framework-blueprints/ directory.
+allowed-tools: Read, Write, Glob
 ---
 
 # Blueprint Generation for Framework Development
 
 This skill provides templates and guidance for creating the comprehensive blueprint files that document project architecture, decisions, and implementation plans.
+
+> **Related Skills:**
+> - `handoff-protocol` - For detailed handoff document format (used in `05-execution/handoffs/`)
+> - `project-state-management` - For state file structure and checkpointing
 
 ---
 
@@ -38,11 +44,10 @@ Initialize this structure at project start:
 │       ├── frontend-agent.md
 │       └── qa-agent.md
 ├── 05-execution/
-│   ├── handoff-protocol.md        # Standard handoff format
-│   ├── progress-tracker.md        # Status dashboard
+│   ├── progress-tracker.md        # Status dashboard (see handoff-protocol skill)
 │   ├── shared-context.md          # Context all agents need
 │   ├── state-summary-phase-5.md   # 50% checkpoint summary
-│   └── handoffs/                  # Individual handoff files
+│   └── handoffs/                  # Individual handoff files (format in handoff-protocol skill)
 │       ├── HO-001-backend-to-frontend.md
 │       └── HO-002-frontend-to-qa.md
 └── 06-integration/
@@ -284,6 +289,9 @@ All architectural and technical decisions with sources.
 
 ### 05-execution/progress-tracker.md
 
+> **Note:** For individual handoff document format, see the `handoff-protocol` skill.
+> This progress tracker is a dashboard showing status of all agents and handoffs.
+
 ```markdown
 # Execution Progress Tracker
 
@@ -320,6 +328,9 @@ All architectural and technical decisions with sources.
 | ID | From | To | Status | Notes |
 |----|------|-----|--------|-------|
 | HO-001 | BE-01 | FE-01 | Pending | Waiting on T-002 |
+
+> For detailed handoff documents, see `05-execution/handoffs/HO-*.md`
+> For handoff document format, see the `handoff-protocol` skill.
 
 ---
 

@@ -4,8 +4,10 @@
       {
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "Check if `.framework-blueprints/00-project-state.json` exists. If it exists, read it and inform the user that a previous framework development session was found, showing the project name, current phase, and last update date. Ask if they want to resume or start fresh. If no state file exists, proceed normally."
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/state-backup.js",
+            "timeout": 5,
+            "statusMessage": "Checking for framework-dev session..."
           }
         ]
       }
@@ -15,29 +17,68 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "If `.framework-blueprints/00-project-state.json` exists, briefly check that this request aligns with the current phase and doesn't conflict with existing decisions. If major conflict detected, warn the user."
+            "model": "claude-haiku-4-5",
+            "prompt": "If `.framework-blueprints/00-project-state.json` exists, briefly check that this request aligns with the current phase and doesn't conflict with existing decisions. If major conflict detected, warn the user.",
+            "timeout": 10
           }
         ]
       }
     ],
     "PreToolUse": [
       {
-        "matcher": "Write|Edit",
+        "matcher": "Write",
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Before writing code that may call API endpoints, verify the endpoint exists in `.framework-blueprints/03-api-planning/api-contracts.md` if that file exists. Use only endpoints defined there."
+            "model": "claude-haiku-4-5",
+            "prompt": "If the target file is under `src/` or calls API endpoints, verify the endpoint exists in `.framework-blueprints/03-api-planning/api-contracts.md` if that file exists. Use only endpoints defined there.",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "prompt",
+            "model": "claude-haiku-4-5",
+            "prompt": "If the target file is under `src/` or calls API endpoints, verify the endpoint exists in `.framework-blueprints/03-api-planning/api-contracts.md` if that file exists. Use only endpoints defined there.",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "Context is about to be compacted. If `.framework-blueprints/00-project-state.json` exists, read the current state file and any in-progress work details, then write a `state-summary-precompact.md` in the current phase directory under `.framework-blueprints/` with all critical details (variable names, port numbers, non-standard paths, API quirks, current task progress). This ensures no details are lost during compaction.",
+            "timeout": 30
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Write|Edit",
+        "matcher": "Write",
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "If a file in `.framework-blueprints/` was modified, consider updating `00-project-state.json` with the change and timestamp."
+            "model": "claude-haiku-4-5",
+            "prompt": "If a file in `.framework-blueprints/` was just written or modified, update `00-project-state.json` with the change timestamp in the `updatedAt` field.",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "prompt",
+            "model": "claude-haiku-4-5",
+            "prompt": "If a file in `.framework-blueprints/` was just edited, update `00-project-state.json` with the change timestamp in the `updatedAt` field.",
+            "timeout": 10
           }
         ]
       }
@@ -47,7 +88,9 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "If working on framework development and significant progress was made, remind user they can run `/checkpoint` to save state, or suggest committing blueprint changes with git."
+            "model": "claude-haiku-4-5",
+            "prompt": "If working on framework development and `.framework-blueprints/` exists and significant progress was made during this session, remind the user they can run `/checkpoint` to save state, or suggest committing blueprint changes with git.",
+            "timeout": 10
           }
         ]
       }

@@ -11,11 +11,14 @@ Export framework blueprints to shareable formats for documentation, presentation
 ## Usage
 
 ```
-/export pdf                    # Export to PDF (requires pandoc)
-/export html                   # Export to standalone HTML
+/export pdf                    # Export to PDF (pandoc if available, else HTML print-to-PDF)
+/export html                   # Export to standalone HTML (no dependencies)
 /export notion                 # Export Notion-compatible markdown
 /export markdown ./docs/       # Export combined markdown to directory
 ```
+
+**No external dependencies required.** HTML and Markdown exports work everywhere.
+For PDF, we try pandoc first; if unavailable, generate HTML and suggest print-to-PDF.
 
 ## Mode: $ARGUMENTS
 
@@ -27,12 +30,11 @@ Generate a professional PDF document from all blueprints.
 
 ### Prerequisites
 
-```bash
-# Check if pandoc is installed
-which pandoc || echo "Please install pandoc: https://pandoc.org/installing.html"
+Pandoc is optional. If not installed, we fall back to HTML export with print-to-PDF instructions.
 
-# Optional: Install for better PDFs
-which pdflatex || echo "For better PDFs, install LaTeX"
+```bash
+# Check if pandoc is available (optional)
+which pandoc 2>/dev/null || where pandoc 2>nul || echo "Pandoc not found - will use HTML fallback"
 ```
 
 ### Step 1: Gather All Blueprints
@@ -383,15 +385,24 @@ If single file:
 ### Missing Tools
 
 ```markdown
-⚠️ **Export requires additional tools**
+Pandoc not found. Using HTML fallback.
 
-For PDF export, please install:
-- pandoc: https://pandoc.org/installing.html
-- LaTeX (optional): For better PDF quality
+Generated: [project-name]-blueprint.html
 
-For now, try:
-- `/export html` (no dependencies)
-- `/export markdown` (no dependencies)
+To create a PDF from the HTML:
+1. Open the HTML file in your browser
+2. Press Ctrl+P (or Cmd+P on Mac)
+3. Select "Save as PDF" as the destination
+4. Click Save
+
+Alternatively, install pandoc for direct PDF generation:
+https://pandoc.org/installing.html
+```
+
+Or use the cross-platform Node.js script directly:
+```bash
+node scripts/export-markdown.js html   # Always works, no dependencies
+node scripts/export-markdown.js markdown  # Always works, no dependencies
 ```
 
 ### Empty Blueprints

@@ -1,5 +1,7 @@
 ---
-description: Use this skill when transitioning work between agents during Phase 5 (Execution). Defines the standard handoff document format, quality checklists, and context transfer protocols for multi-agent orchestration.
+name: handoff-protocol
+description: Use when transitioning work between agents during multi-agent execution.
+allowed-tools: Read, Write
 ---
 
 # Handoff Protocol for Multi-Agent Orchestration
@@ -165,6 +167,9 @@ Use the template above with:
 - All critical details that could be forgotten
 
 ### Step 3: Update State
+
+Update the project state file (see `project-state-management` skill for state file details):
+
 ```json
 {
   "handoffs": [

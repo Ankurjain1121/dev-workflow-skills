@@ -1,5 +1,7 @@
 ---
-description: Use this skill when the user asks about "API design", "REST API", "GraphQL schema", "endpoint design", "request response format", "API versioning", "API contracts", "resource naming", "HTTP methods", or needs guidance during Phase 3 (Planning) to define API specifications for the framework.
+name: api-design-principles
+description: Use when defining API endpoints, designing request/response schemas, or establishing API contracts during framework planning.
+allowed-tools: Read, Write, Grep, WebSearch
 ---
 
 # API Design Principles for Framework Development
@@ -57,110 +59,7 @@ flowchart LR
 
 ## API Contract File Format
 
-Create `03-api-planning/api-contracts.md` with this structure:
-
-```markdown
-# API Contracts
-
-> ⚠️ **THIS FILE IS THE SOURCE OF TRUTH**
-> Before implementing or calling any endpoint, read this file.
-> Do not guess endpoints. Do not assume paths.
-
-## Base Configuration
-- Base URL: `/api/v1`
-- Auth: Bearer token in `Authorization` header
-- Content-Type: `application/json`
-- All dates: ISO 8601 UTC
-
-## Endpoints Index
-
-| Method | Path | Description | Status |
-|--------|------|-------------|--------|
-| GET | /users | List all users | ✅ Implemented |
-| POST | /users | Create user | ✅ Implemented |
-| GET | /users/:id | Get user by ID | 🔄 In Progress |
-| PUT | /users/:id | Update user | ⏳ Pending |
-| DELETE | /users/:id | Delete user | ⏳ Pending |
-
----
-
-## Endpoint Details
-
-### GET /users
-
-**Description:** List all users with pagination
-
-**Authentication:** Required
-
-**Query Parameters:**
-| Param | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| page | integer | No | 1 | Page number |
-| limit | integer | No | 20 | Items per page (max 100) |
-| sort | string | No | createdAt | Sort field |
-| order | string | No | desc | Sort direction (asc/desc) |
-
-**Response 200:**
-```json
-{
-  "data": [
-    {
-      "id": "uuid",
-      "email": "string",
-      "name": "string",
-      "createdAt": "ISO8601",
-      "updatedAt": "ISO8601"
-    }
-  ],
-  "meta": {
-    "page": 1,
-    "limit": 20,
-    "total": 100,
-    "totalPages": 5
-  }
-}
-```
-
-**Response 401:** Unauthorized
-**Response 429:** Rate limited
-
----
-
-### POST /users
-
-**Description:** Create a new user
-
-**Authentication:** Required (admin only)
-
-**Request Body:**
-```json
-{
-  "email": "string (required, valid email)",
-  "name": "string (required, 2-100 chars)",
-  "password": "string (required, min 8 chars)",
-  "role": "string (optional, default: 'user', enum: ['user', 'admin'])"
-}
-```
-
-**Response 201:** ← NOTE: 201, not 200
-```json
-{
-  "data": {
-    "id": "uuid",
-    "email": "string",
-    "name": "string",
-    "role": "string",
-    "createdAt": "ISO8601"
-  }
-}
-```
-
-**Response 400:** Validation error
-**Response 401:** Unauthorized
-**Response 409:** Email already exists
-
----
-```
+See `references/contract-format-example.md` for the full template. Key points: create `03-api-planning/api-contracts.md` as the SINGLE SOURCE OF TRUTH with base configuration, endpoints index table (with status tracking: ⏳ Pending / 🔄 In Progress / ✅ Implemented), and detailed per-endpoint specifications including method, path, query params, request/response schemas, and status codes.
 
 ---
 
@@ -224,58 +123,7 @@ Conventions:
 
 ## Response Structure Standards
 
-### Success Response Envelope
-
-```json
-{
-  "data": {
-    "id": "task-123",
-    "type": "task",
-    "attributes": {
-      "title": "Implement login",
-      "status": "active"
-    }
-  },
-  "meta": {
-    "requestId": "uuid"
-  }
-}
-```
-
-### List Response Envelope
-
-```json
-{
-  "data": [
-    { "id": "1", "name": "Item 1" },
-    { "id": "2", "name": "Item 2" }
-  ],
-  "meta": {
-    "page": 1,
-    "limit": 20,
-    "total": 100,
-    "totalPages": 5
-  }
-}
-```
-
-### Error Response Structure
-
-```json
-{
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Invalid request",
-    "details": [
-      {
-        "field": "email",
-        "message": "Must be a valid email address"
-      }
-    ],
-    "requestId": "uuid"
-  }
-}
-```
+See `references/response-standards.md` for complete examples. All responses use envelope pattern: single resources in `data` object, collections in `data` array with `meta` for pagination, errors in `error` object with `code`, `message`, `details` array for field-level errors, and `requestId` for tracing.
 
 ---
 
@@ -301,37 +149,7 @@ Conventions:
 
 ## Validation Rules
 
-### Request Validation Template
-
-Document validation in the contract:
-
-```yaml
-CreateUser:
-  email:
-    type: string
-    required: true
-    format: email
-    maxLength: 255
-    
-  name:
-    type: string
-    required: true
-    minLength: 2
-    maxLength: 100
-    pattern: "^[a-zA-Z ]+$"
-    
-  password:
-    type: string
-    required: true
-    minLength: 8
-    pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).*$"
-    
-  role:
-    type: string
-    required: false
-    enum: [user, admin]
-    default: user
-```
+See `references/validation-rules.md` for the complete request validation template. Document all validation rules in YAML format with type, required flag, format constraints (email, minLength, maxLength, pattern), enum values, and defaults for optional fields.
 
 ---
 
@@ -495,35 +313,7 @@ When implementing code that calls an API:
 
 ## GraphQL Contract Alternative
 
-For GraphQL APIs, document in `api-contracts.md`:
-
-```graphql
-# Types
-type User {
-  id: ID!
-  email: String!
-  name: String!
-  createdAt: DateTime!
-}
-
-# Queries
-type Query {
-  user(id: ID!): User
-  users(page: Int, limit: Int): UserConnection!
-}
-
-# Mutations
-type Mutation {
-  createUser(input: CreateUserInput!): UserPayload!
-}
-
-# Inputs
-input CreateUserInput {
-  email: String!
-  name: String!
-  password: String!
-}
-```
+See `references/graphql-contract.md` for the GraphQL schema template. For GraphQL APIs, document types, queries, mutations, and input types in standard GraphQL schema definition language within `api-contracts.md`.
 
 ---
 

@@ -1,5 +1,7 @@
 ---
-description: Use this skill to standardize the research process for technology recommendations. Provides research checklists, source verification criteria, and comparison templates.
+name: research-workflow
+description: Use when researching technology options before making framework recommendations.
+allowed-tools: Read, WebSearch, WebFetch
 ---
 
 # Research Workflow for Technology Decisions
