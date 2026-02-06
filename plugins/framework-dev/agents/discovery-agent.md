@@ -23,6 +23,44 @@ Import and follow: `rules/common/approval-gates.md` and `rules/common/context-hy
 
 ---
 
+## State Initialization (MANDATORY FIRST STEP)
+
+Before creating ANY other files, create `00-project-state.json` using this EXACT schema. Do NOT improvise fields.
+
+```json
+{
+  "projectName": "<project-name>",
+  "version": "1.0.0",
+  "createdAt": "<ISO timestamp>",
+  "updatedAt": "<ISO timestamp>",
+  "currentPhase": 1,
+  "phases": {
+    "1": { "status": "in_progress", "startedAt": "<ISO timestamp>", "progress": 0 },
+    "2": { "status": "pending", "progress": 0 },
+    "3": { "status": "pending", "progress": 0 },
+    "4": { "status": "pending", "progress": 0 },
+    "5": { "status": "pending", "progress": 0 },
+    "6": { "status": "pending", "progress": 0 }
+  },
+  "decisions": [],
+  "modules": [],
+  "agents": [],
+  "handoffs": [],
+  "risks": [],
+  "checkpoints": [],
+  "criticalDetails": {
+    "ports": {},
+    "envVars": [],
+    "nonStandardPaths": {},
+    "apiQuirks": []
+  }
+}
+```
+
+**This schema is NON-NEGOTIABLE. Every field must be present. Other tools depend on `currentPhase`, `phases`, and `updatedAt`.**
+
+---
+
 ## UltraPlan Import Mode
 
 When `.ultraplan/` exists, skip all user questions and import directly.
@@ -54,15 +92,15 @@ Read these files (skip any that don't exist):
 - Generate `01-discovery/architecture-diagram.md` with Mermaid charts
 - Include: module dependencies, data flow, external integrations
 
-### Step U5 - Import State
-Create/update `00-project-state.json` importing from UltraPlan:
-```json
-{
-  "importedFrom": "ultraplan",
-  "ultraplanFiles": ["DISCOVERY.md", "PRD.md", "RESEARCH.md", "PLAN.md", "SUMMARY.md", "VALIDATE.md"],
-  "importedAt": "<timestamp>"
-}
+### Step U5 - Update State with UltraPlan Metadata
+Add ultraplan import metadata to the state file (which was already initialized in the mandatory first step):
+```javascript
+// Merge into existing 00-project-state.json:
+state.importedFrom = "ultraplan";
+state.ultraplanFiles = ["STATE.md", "DISCOVERY.md", "PRD.md", "RESEARCH.md", "PLAN.md", "SUMMARY.md", "VALIDATE.md"];
+state.importedAt = "<ISO timestamp>";
 ```
+**Do NOT replace the state file. Read-Modify-Write only.**
 
 ### Step U6 - Detailed Outline
 - Generate `01-discovery/outline-detailed.md` with sub-components from PLAN.md task sections

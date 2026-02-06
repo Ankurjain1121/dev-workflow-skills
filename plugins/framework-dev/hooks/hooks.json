@@ -29,10 +29,9 @@
         "matcher": "Write",
         "hooks": [
           {
-            "type": "prompt",
-            "model": "claude-haiku-4-5",
-            "prompt": "If the target file is under `src/` or calls API endpoints, verify the endpoint exists in `.framework-blueprints/03-api-planning/api-contracts.md` if that file exists. Use only endpoints defined there.",
-            "timeout": 10
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/check-api-contract.js",
+            "timeout": 5
           }
         ]
       },
@@ -40,10 +39,9 @@
         "matcher": "Edit",
         "hooks": [
           {
-            "type": "prompt",
-            "model": "claude-haiku-4-5",
-            "prompt": "If the target file is under `src/` or calls API endpoints, verify the endpoint exists in `.framework-blueprints/03-api-planning/api-contracts.md` if that file exists. Use only endpoints defined there.",
-            "timeout": 10
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/check-api-contract.js",
+            "timeout": 5
           }
         ]
       }
@@ -64,10 +62,9 @@
         "matcher": "Write",
         "hooks": [
           {
-            "type": "prompt",
-            "model": "claude-haiku-4-5",
-            "prompt": "If a file in `.framework-blueprints/` was just written or modified, update `00-project-state.json` with the change timestamp in the `updatedAt` field.",
-            "timeout": 10
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/update-state-timestamp.js",
+            "timeout": 5
           }
         ]
       },
@@ -75,10 +72,9 @@
         "matcher": "Edit",
         "hooks": [
           {
-            "type": "prompt",
-            "model": "claude-haiku-4-5",
-            "prompt": "If a file in `.framework-blueprints/` was just edited, update `00-project-state.json` with the change timestamp in the `updatedAt` field.",
-            "timeout": 10
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/update-state-timestamp.js",
+            "timeout": 5
           }
         ]
       }
