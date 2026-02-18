@@ -16,5 +16,5 @@
     "./agents/docs-researcher.md",
     "./agents/section-writer.md"
   ],
-  "hooks": "hooks/hooks.json"
+  "hooks": "./hooks/hooks.json"
 }
