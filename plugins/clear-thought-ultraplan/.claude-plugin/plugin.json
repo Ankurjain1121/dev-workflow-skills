@@ -1,0 +1,20 @@
+{
+  "name": "clear-thought-ultraplan",
+  "description": "Enhanced planning system that combines UltraPlan's 6-phase pipeline with Clear Thought's 11 structured thinking frameworks. Transforms plain-English ideas into AI-executable implementation plans using mental models, design patterns, collaborative reasoning, scientific method, and more at every phase.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ankur Jain",
+    "email": "ankurjain1121@gmail.com"
+  },
+  "repository": "https://github.com/Ankurjain1121/clear-thought-ultraplan",
+  "license": "MIT",
+  "keywords": ["planning", "prd", "requirements", "thinking", "mental-models", "clear-thought", "discovery", "research", "tdd"],
+  "skills": ["./skills/"],
+  "agents": [
+    "./agents/codebase-researcher.md",
+    "./agents/web-researcher.md",
+    "./agents/docs-researcher.md",
+    "./agents/section-writer.md"
+  ],
+  "hooks": "hooks/hooks.json"
+}

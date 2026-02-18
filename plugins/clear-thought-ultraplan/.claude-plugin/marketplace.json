@@ -1,0 +1,25 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "clear-thought-ultraplan",
+  "description": "Claude Code plugin combining UltraPlan + Clear Thought thinking frameworks",
+  "version": "1.0.0",
+  "owner": {
+    "name": "Ankur Jain",
+    "url": "https://github.com/Ankurjain1121"
+  },
+  "plugins": [
+    {
+      "name": "clear-thought-ultraplan",
+      "description": "Enhanced planning system: UltraPlan's 6-phase pipeline + 11 structured thinking frameworks (mental models, design patterns, collaborative reasoning, scientific method, metacognitive monitoring, etc.) applied at every planning phase.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Ankur Jain",
+        "url": "https://github.com/Ankurjain1121"
+      },
+      "source": "./",
+      "category": "development",
+      "homepage": "https://github.com/Ankurjain1121/clear-thought-ultraplan",
+      "tags": ["planning", "prd", "thinking", "mental-models", "clear-thought", "requirements", "no-code", "discovery", "research", "tdd"]
+    }
+  ]
+}

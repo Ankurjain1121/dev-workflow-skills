@@ -43,6 +43,12 @@
       "description": "Project framework orchestrator (6-phase workflow)",
       "source": "./plugins/framework-dev",
       "category": "planning"
+    },
+    {
+      "name": "clear-thought-ultraplan",
+      "description": "UltraPlan 6-phase planning + 11 Clear Thought thinking frameworks",
+      "source": "./plugins/clear-thought-ultraplan",
+      "category": "planning"
     }
   ]
 }
