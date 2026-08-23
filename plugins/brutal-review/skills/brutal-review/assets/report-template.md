@@ -26,6 +26,20 @@ Use this exact format for final report output.
 ### Biggest Failure
 > [Single worst issue found - the one that keeps you up at night]
 
+### Dismissed (false positives)
+
+| Agent | Claimed | Why it was dropped |
+|-------|---------|--------------------|
+| [sec] | [the finding as reported] | [citation did not support it / no failure scenario / zero-score category] |
+
+Never omit this table. Showing what was thrown out is what makes what remains believable — and an
+empty table is itself a claim, so only leave it empty if STEP 3.5 genuinely dropped nothing.
+*(Pattern adopted from yeameen/claude-code-review-council, MIT.)*
+
+### Score Caveat
+State whether the final number reflects the findings or a scoring floor. Two CATASTROPHIC findings
+zero a category; at 30% weight that removes 30 points on its own. Say so when it happens.
+
 ### Immediate Concern
 > [What needs fixing FIRST before anything else]
 

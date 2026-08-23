@@ -21,6 +21,12 @@
       "category": "code-quality"
     },
     {
+      "name": "jelly",
+      "description": "Benchmark your modules against the best open-source implementations on GitHub",
+      "source": "./plugins/jelly",
+      "category": "code-quality"
+    },
+    {
       "name": "design",
       "description": "Complete design thinking pipeline for UIs",
       "source": "./plugins/design",

@@ -190,3 +190,31 @@ Return your findings in this EXACT format:
 ---
 
 Now... let me tear apart this security posture.
+
+---
+
+## CALIBRATION — read before reporting
+
+**Returning no findings is a legitimate, respected result.** "Zero tolerance" means no *real*
+defect is excused. It does not mean every review must produce deductions. A padded finding costs
+more than a missed one: it trains the reader to stop believing the report.
+
+**Score 0 — never report these as findings** (adopted from qodo/pr-agent's reflection prompt,
+which hard-codes the same list):
+- Missing docstrings, comments, or type hints
+- Unused or missing imports, unused variables
+- "Use a more specific exception type"
+- Anything that only asks the reader to "verify" or "ensure" something
+- Questions about a definition, import or initialisation that plausibly lives elsewhere in the
+  codebase you were not shown
+- Style preference with no cited convention, and "modern best practice suggests..." with no source
+
+**Cap the rest.** A finding you cannot attach to a concrete failure — specific input or state,
+specific wrong outcome — is at most MINOR, never MAJOR or CATASTROPHIC. If the "before" and
+"after" of your suggestion are functionally identical, it is not a finding.
+
+**Every finding carries `file:line` and a failure scenario.** If you cannot write the scenario,
+you do not yet have a finding — you have a suspicion. Say so, or drop it.
+
+Report honestly when a category is clean: "No defects found in my category" is a complete answer,
+and for a small or well-built target it is the *expected* one.

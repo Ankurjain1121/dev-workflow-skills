@@ -2,7 +2,7 @@
 name: brutal-review
 description: Zero-tolerance multi-agent code annihilation system. Spawns parallel brutal agents for Security, Architecture, Quality, Performance, and Style review with full MCP integration. Modes: full|security|pr|arch|perf|quick|frontend|compare. Use when you need ruthless, comprehensive code review with weighted scoring and zero tolerance thresholds (95+ to pass).
 argument-hint: "[mode] [target]"
-allowed-tools: ["Task", "Bash", "Glob", "Grep", "Read", "mcp__context7__resolve-library-id", "mcp__context7__query-docs", "mcp__grep__searchCode", "mcp__grep__github_file", "mcp__exa__web_search_exa", "mcp__exa__get_code_context_exa", "mcp__sequential-thinking__sequentialthinking"]
+allowed-tools: ["Task", "Bash", "Glob", "Grep", "Read", "mcp__context7__resolve-library-id", "mcp__context7__query-docs", "mcp__plugin_context7_context7__resolve-library-id", "mcp__plugin_context7_context7__query-docs", "mcp__grep__grep_query", "mcp__exa__web_search_exa", "mcp__exa__web_fetch_exa", "mcp__sequential-thinking__sequentialthinking"]
 ---
 
 # THE BRUTAL CRITIC v3.0 - ZERO TOLERANCE
@@ -45,6 +45,17 @@ Parse the first argument to determine review mode:
 - If mode is `compare`, second argument is the reference repo
 - Default: Current directory (`.`)
 
+### Intent Brief (ask if not supplied)
+
+Before spawning anything, establish what the change was *meant* to do: the PR description or a
+one-line statement of intent, the project conventions that apply (CLAUDE.md / AGENTS.md if
+present), and anything deliberately out of scope. Pass this to every agent.
+
+Without it, agents cannot flag "implementation diverges from stated rule" — the class of finding
+that matters most — and they will re-flag deliberate deferrals as defects. claude-code-review-
+council A/B-tested this on one diff: briefed reviewers caught 3 P1s, including a stated-rule
+violation, that unbriefed reviewers could not surface.
+
 ### Project Type Detection
 Check for these files to determine stack:
 - `package.json` → Node.js/TypeScript/React
@@ -68,6 +79,10 @@ Use `mcp__sequential-thinking__sequentialthinking` to:
 - Consider edge cases and potential issues
 
 ### 2.2 Context7 - Framework Best Practices
+Context7 is installed either as a plain MCP server (`mcp__context7__*`) or as a plugin
+(`mcp__plugin_context7_context7__*`). Both spellings are whitelisted above — use whichever
+one this session actually exposes, and skip the step if neither is present.
+
 1. Use `mcp__context7__resolve-library-id` to find the detected framework/library
 2. Use `mcp__context7__query-docs` to fetch:
    - Security best practices for the stack
@@ -76,15 +91,20 @@ Use `mcp__sequential-thinking__sequentialthinking` to:
    - Code style guidelines
 
 ### 2.3 Grep - Real-World Patterns
-Use `mcp__grep__searchCode` to:
+Use `mcp__grep__grep_query` to:
 - Find how top repos structure similar code
 - Search for common patterns in the detected framework
 - Identify anti-patterns to watch for
 
+It takes `query` plus optional `language`, `repo` ("owner/name") and `path`, caps at 10
+results, and rate-limits readily. On `Rate limit exceeded`, carry on without it and say so
+rather than implying the search came back clean. To read a whole file from a public repo,
+use `gh api repos/{owner}/{repo}/contents/{path} --jq '.content' | base64 -d`.
+
 ### 2.4 Exa - Latest Research (Mode-Dependent)
 - **Security mode:** Use `mcp__exa__web_search_exa` for latest CVEs, OWASP updates
 - **Performance mode:** Search for latest optimization techniques
-- **All modes:** Use `mcp__exa__get_code_context_exa` for framework-specific guidance
+- **All modes:** Use `mcp__exa__web_fetch_exa` to read the docs pages the search turns up
 
 ---
 
@@ -97,6 +117,15 @@ Each agent receives:
 2. Mode-specific focus areas (from references/mode-configurations.md)
 3. MCP research results from Step 2
 4. Brutal personality directive
+
+### Model Selection — spend the cheapest tier that can do the job
+
+Bundled defaults: `brutal-security` and `brutal-architecture` at `opus` (deepest reasoning, where
+a miss is most expensive); `brutal-quality`, `brutal-performance` and `brutal-style` at `sonnet`.
+Override per run: QUICK mode can drop everything to `sonnet`, and a large uniform codebase can run
+`haiku` for the mechanical sweep of `style`. Never spawn five `opus` agents for a small diff — and
+if a cheaper agent returns something thin, re-run *that one* higher rather than raising the tier
+for the whole panel.
 
 ### Agent Spawn Template
 
@@ -136,15 +165,43 @@ Each agent MUST return:
 
 ---
 
+## STEP 3.5: VERIFY BEFORE YOU COUNT (MANDATORY)
+
+Agents generate; this step judges. Never let a raw agent finding reach the score.
+
+Every project in the field that survives contact with real users separates these two steps —
+qodo/pr-agent runs a dedicated reflection prompt that scores whole suggestion classes to zero,
+and claude-code-review-council states outright that the panel is not the value, the synthesis is:
+"they also produce false positives that look authoritative."
+
+For each finding returned by an agent:
+
+1. **Re-read the cited code.** Open `file:line` yourself. A finding whose citation does not
+   support it is dropped, not downgraded.
+2. **Demand the failure scenario.** No concrete input/state → wrong outcome? Drop to MINOR or cut.
+3. **Apply the zero-score list** from the agents' calibration section — docstrings, unused
+   imports, type hints, "verify that…", unsourced style preference. These are never findings.
+4. **Re-rate severity yourself.** The agents' labels are starting points, not gospel. A
+   "CATASTROPHIC" that is really a nit gets downgraded; a "MINOR" race condition gets promoted.
+5. **Distrust unanimity too.** Agents share a base model and therefore share blind spots.
+   Agreement raises confidence; it does not establish truth.
+
+**Record every dropped finding.** They go in the report's "Dismissed" section — showing what you
+threw out is what makes what remains believable.
+
 ## STEP 4: AGGREGATE RESULTS
 
 After all agents complete, aggregate their findings.
 
 ### 4.1 Collect Agent Outputs
-Parse each agent's output to extract:
+Parse each **verified** output (post STEP 3.5) to extract:
 - Raw score for their category
 - Issues with severity and location
 - Multi-category impact deductions
+
+Tag each surviving finding with every agent that independently raised it, e.g. `[sec|qual]`. Where
+two agents contradict each other, **surface the disagreement** rather than silently picking one —
+a split panel is information the reader needs, not noise to resolve away.
 
 ### 4.2 Apply Mode-Specific Weights
 
@@ -173,6 +230,14 @@ FINAL = (Security × weight) + (Architecture × weight) + (Quality × weight) + 
 ---
 
 ## STEP 5: ENFORCE ZERO TOLERANCE
+
+**The finding list is the verdict. The score is a summary of it, not a measurement.** Report both,
+and say plainly when the number is an artefact rather than a reading: two CATASTROPHIC findings
+floor a category to 0, and a floored 30%-weight category removes 30 points regardless of how sound
+everything else is. That is the scale reporting the floor, not the codebase being 30 points worse.
+No project in the surveyed field gates on a single aggregate — pr-agent scores suggestions
+individually, claude-code-review-council uses per-finding severity. Treat a FAIL as "read these
+findings", never as "this codebase is 20/100".
 
 ### Thresholds by Mode
 
@@ -262,6 +327,7 @@ All issues from all agents, sorted by severity:
 1. **ALWAYS use sequential-thinking** before starting review
 2. **ALWAYS query context7** for framework best practices
 3. **SPAWN AGENTS IN PARALLEL** - single message, multiple Task calls
+3b. **VERIFY EVERY FINDING (STEP 3.5)** before it reaches the score - drop what does not survive
 4. **COMPLETE ALL CHECKLISTS** from references/checklists.md
 5. **USE WEIGHTED CALCULATION** - not simple average
 6. **APPLY MULTI-CATEGORY DEDUCTIONS** to ALL affected categories
