@@ -9,12 +9,19 @@ command is remote code execution.
 
 | Channel | Limit | On hit |
 |---|---|---|
-| `gh search *` | **30 requests/minute**, shared across every process using your token — a separate, much lower ceiling than the 5000/hr core API limit | Pause 60s. Never report "no candidates" for a 403 |
+| `gh search *` | **30 requests/minute**, shared across every process using your token — a separate, much lower ceiling than the 5000/hr core API limit | Pause 60s. Never report "no candidates" for a 403. A 403 on `gh search` mid-run: name it in the report's unavailable list, same as grep.app below |
 | `gh api` (core) | 5000/hr authenticated | Pause, or finish with what you have and say so |
-| grep.app (`grep_query`) | Undocumented, hit readily; caps at 10 results | Carry on with the other channels; record grep.app unavailable |
+| grep.app (`grep_query`) | Undocumented, hit readily; caps at 10 results | Probe **once** per module (the preflight check in SKILL.md §0). If it rate-limits, treat it as unavailable for the rest of that module — do not retry into the limit. Carry on with the other two channels |
 
 A rate-limited channel that reads as an empty result is the worst outcome this skill can produce:
 it turns "we could not look" into "there is nothing there". Distinguish them explicitly.
+
+**Expect grep.app to be unavailable.** Across a 12-module sweep run, grep.app was rate-limited on
+every single attempt by every agent, in all 12 modules — this is the common case, not an edge
+case. Plan for it: one probe, no retries, and the report's "unavailable this run" line **must name
+it explicitly** whenever it failed. A report that silently omits grep.app from the channels line
+reads as "we searched everywhere" to anyone who did not watch the run — that is a false claim of
+coverage, not a shortcut.
 
 ## 1. Repo search — topic first, never a sentence
 

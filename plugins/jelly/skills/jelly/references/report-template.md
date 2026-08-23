@@ -3,6 +3,7 @@
 **Benchmarked:** <YYYY-MM-DD> · **Stack detected:** <e.g. TypeScript / Next.js App Router / Drizzle>
 **Our implementation:** `<primary paths>`
 **Channels used:** <gh search · grep.app · Exa> — **unavailable this run:** <none | which, and why>
+**Citations verified:** <N/M passed `references/verify-citations.py` — see SKILL.md §9>
 
 State channel availability honestly. A rate-limited channel is "could not look", never "nothing
 found"; a reader cannot tell the difference from the results alone.
@@ -73,9 +74,37 @@ degenerates into a list of ways we are behind.
 
 - …
 
+## Gap to world-class
+
+For the single most advanced candidate above (name it — usually #1, argue it if not):
+
+**Feature-by-feature delta** — what it does that we do not, in product terms:
+
+- …
+
+**Product/UX maturity** — walk each explicitly for the leader vs. ours; "n/a" or "untested" is a
+valid answer but do not skip the row:
+
+| Dimension | The leader | Ours |
+|---|---|---|
+| Empty states | | |
+| Error recovery | | |
+| Keyboard / screen-reader support | | |
+| Mobile behaviour | | |
+| Onboarding | | |
+| Bulk operations | | |
+| Undo | | |
+| Perceived speed | | |
+
+**Staged path to world-class:**
+
+- **First** (cheap, high impact): …
+- **Next**: …
+- **Eventually**: …
+
 ## Proposals
 
-Ranked, highest value first. Verdicts are defined in `SKILL.md` §7 — **copy** / **port the idea**
+Ranked, highest value first. Verdicts are defined in `SKILL.md` §8 — **copy** / **port the idea**
 / **write fresh** — and a `copy` is licence-gated and needs human approval before anyone acts.
 
 `ID` is `JY-<module>-<nn>`, assigned on first appearance and never reused. It is what survives

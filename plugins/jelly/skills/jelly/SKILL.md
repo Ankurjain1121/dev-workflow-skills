@@ -139,15 +139,50 @@ recording that channel as "no candidates found after 3 query forms".
 
 ## 3. Rank to five, against a stated bar
 
-**Alive** (pushed within ~12 months, not archived) · **really used** (stars, dependents, or a
-release — not a tutorial repo) · **licence recorded** · **actually implements the feature**,
-verified by opening a file rather than trusting the README.
+The bar selects for the **ceiling, not the floor**. "Comparable" is not the target — a run that
+picks a 2-star personal project over the 2,600-star reference implementation in the same domain
+has failed even though every candidate technically "implements the feature". The five must
+include the acknowledged leader: the most feature-complete, most polished, most user-friendly
+implementation in the domain — the one other projects copy from — not merely one that works.
+
+**Discovery moves that find leaders, not just matches:**
+- Sort every `gh search repos` call by stars within the topic; do not stop at the first page.
+- Look for the standard or spec, not just an app. A specification with a reference
+  implementation (FHIR, GEDCOM, tus, OAuth, …) often beats any single product's take on the
+  feature — check whether one exists for this domain before ranking apps against each other.
+- Check `awesome-<domain>` lists — curated, and often surface the leader keyword search misses.
+
+**Alive, computed not eyeballed** — print `pushedAt` for every candidate and state the age in
+months against the ~12-month bar. "Last push 2025-03, 17 months ago" is the required form; do not
+just note "recently active". A stale pick needs the written justification below.
+
+**Really used** — stars, dependents, or a release, not a tutorial repo.
+
+**Hard traction floor** — a candidate below roughly 200★ is not banned, but needs an explicit
+written justification naming what it uniquely demonstrates that no larger project does. A thin
+field can legitimately be all small repos (the `binder` module run correctly used four sub-200★
+repos because nothing bigger existed) — the requirement is that this be argued, not silent.
+Silence below the floor is a defect; a stated reason is not.
+
+**Licence recorded, and weighed as a ranking factor, not just metadata.** Permissive licensing
+(MIT, Apache-2.0, BSD) is a ranking advantage over GPL/AGPL: a `copy` verdict against AGPL is
+unusable in a hosted product (the network clause triggers on serving it), so an all-GPL/AGPL top
+five silently forces every proposal to "write fresh" regardless of how good the code is. Prefer a
+strong permissively-licensed project over a marginally more popular copyleft one when both clear
+the traction floor, and say so in "why it earned the slot" either way.
+
+**Actually implements the feature**, verified by opening a file rather than trusting the README.
 
 Same stack ranks first — its code ports directly. Another language enters only when it is plainly
 the reference implementation, and the report says why it earned the slot.
 
 **Log every candidate you cut, with the reason.** A top five with no visible floor cannot be
 argued with, which makes it worthless.
+
+**Never pad to five.** A short, honest list beats five slots filled with 0★ noise. If the field is
+genuinely thin after all three channels and the reformulation budget in step 2, report four,
+three, or fewer and say the field is thin — as the `binder` module correctly did. Padding to hit
+the number is a worse outcome than an honest short list, and the report must not disguise it.
 
 ## 4. Read the real implementation
 
@@ -179,7 +214,28 @@ The part that makes the run worth its cost. Do not stop at five separate summari
   the report degenerates into a list of ways you are behind.
 - **Convergent design we already share.** Confirmation a past decision holds up.
 
-## 7. Proposals
+## 7. Gap to world-class
+
+The reason this skill exists: not "what's comparable" but "what would make ours world-class".
+Take the single most advanced candidate from step 3 — usually #1, but argue it if a different one
+of the five is more advanced on this axis — and produce:
+
+- **Feature-by-feature delta**, in product terms a non-engineer would recognise: what it does
+  that we do not, stated as user-visible capability, not implementation detail.
+- **Product/UX maturity as its own axis**, not a single table row. "World-class" is mostly UX:
+  empty states, error recovery, keyboard and screen-reader support, mobile behaviour, onboarding,
+  bulk operations, undo, perceived speed. Walk each of these explicitly for the leader and for
+  ours — most will be "not applicable" or "untested", and say so, but do not skip the axis because
+  most modules will show gaps here.
+- **A staged path**, not a flat list: what to do **first** (cheap, high impact), **next**, and
+  **eventually** — so the reader can see the route from where we are to world-class, not just a
+  pile of deltas in no particular order.
+
+This does not replace "We are ahead here" in step 6 — keep writing that section. A module can be
+ahead of the field on data model or edge cases and still be behind the leader on UX maturity; both
+things are true at once and the report should say both.
+
+## 8. Proposals
 
 Ranked, highest value first. Each names what to change, the target `file:line` **in our code**,
 the evidence (which repos, which files), effort, and a verdict:
@@ -194,9 +250,24 @@ architecture" is a verdict; "didn't fit" is not.
 **Every proposal gets a stable ID: `JY-<module>-<nn>`**, assigned in order on first appearance
 and never reused, even after deletion. That ID is what survives rephrasing between runs.
 
-## 8. Writing the report
+## 9. Writing the report
 
 `docs/benchmarks/<module>.md`, following `references/report-template.md`. Update the index.
+
+**Before writing a single citation, verify it.** A fabricated commit SHA or a cited path that
+doesn't exist at that SHA is indistinguishable from a real one until checked — a prior run on a
+weaker model produced two reports with invented SHAs (`owner/repo@f7e1ded…`, both "Invalid object
+requested") and a cited path that did not exist in the repo, and both looked exactly like valid
+citations until an external check caught them. Do not let that happen silently:
+
+1. For every citation in the draft report, run `gh api "repos/<owner>/<repo>/commits/<sha>"` — it
+   must resolve.
+2. Run `gh api "repos/<owner>/<repo>/git/trees/<sha>?recursive=1"` and confirm the cited path
+   appears in the tree.
+3. A citation failing either check is **removed, never guessed at or repaired** — re-fetch the
+   real permalink if the claim still holds, otherwise drop the claim.
+4. State in the report how many citations were checked and how many passed
+   (`references/verify-citations.py <report>` automates this — run it and paste the summary).
 
 **Re-runs merge; they never overwrite.** Read the existing report first. For each proposal you
 derived this run, match it against the existing rows before writing:
