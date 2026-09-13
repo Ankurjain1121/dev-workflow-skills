@@ -55,6 +55,18 @@
       "description": "UltraPlan 6-phase planning + 11 Clear Thought thinking frameworks",
       "source": "./plugins/clear-thought-ultraplan",
       "category": "planning"
+    },
+    {
+      "name": "regret",
+      "description": "Spec sheet before you build \u2014 every module, field and screen 5 top open-source apps have",
+      "source": "./plugins/regret",
+      "category": "planning"
+    },
+    {
+      "name": "ponytail-vps",
+      "description": "Lazy senior dev mode whose reuse rung searches the whole VPS before writing new code",
+      "source": "./plugins/ponytail-vps",
+      "category": "code-quality"
     }
   ]
 }

@@ -1,0 +1,13 @@
+{
+  "name": "regret",
+  "version": "3.0.0",
+  "description": "Spec sheet before you build — reads how 5 top open-source apps built every module, field, screen and what they deleted, so nothing is missing in month three.",
+  "author": {
+    "name": "Ankur Jain",
+    "email": "ankurjain1121@gmail.com"
+  },
+  "homepage": "https://github.com/Ankurjain1121/dev-workflow-skills",
+  "repository": "https://github.com/Ankurjain1121/dev-workflow-skills",
+  "license": "MIT",
+  "keywords": ["spec", "scoping", "prior-art", "planning", "open-source"]
+}

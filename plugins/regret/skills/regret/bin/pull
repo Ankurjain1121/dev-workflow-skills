@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# pull — how ONE repo built ONE module.
+#   pull owner/repo '<regex>'            files that match + field/method lines from its model files
+#   pull --deleted owner/repo '<regex>'  model files they built and later removed (clones history, ~1 min)
+# regex is case-insensitive, matched against paths: 'partner|contact|customer'
+set -euo pipefail
+CACHE=${REGRET_CACHE:-$HOME/.cache/regret}; mkdir -p "$CACHE"
+MAX_FILES=${REGRET_MAX_FILES:-8}; MAX_LINES=${REGRET_MAX_LINES:-200}
+export SKIP='(^|/)(\.history|tests?|__tests__|testing|spec|fixtures|factories|seeders?|seeds?|node_modules|vendor|dist|build|locale|i18n|l10n|static|assets|docs?|demo)/'
+export NOTMODEL='(^|/)(commands?|controllers?|http|helpers?|services?|jobs?|listeners?|policies|requests?|resources|views?|components?|hooks?|pages?)/'
+export MODELISH='(^|[/._-])(models?|doctype|entities|entity|schemas?|migrations?|prisma|orm|class)([/._-])'
+CODE='\.(py|ts|js|php|rb|go|java|cs|prisma|json|sql|graphql|xml)$'
+# one regex for "this line declares a field, relation, choice list or method"
+FIELD_RE='= *fields\.|models\.[A-Za-z]+Field\(|Column\(|mapped_column\(|Mapped\[|@(Column|Field|OneToMany|ManyToOne|ManyToMany|OneToOne|Workspace[A-Za-z]*)\(|\$table->|\$(fillable|casts|dates|appends)|^\s*t\.(string|integer|text|boolean|date|datetime|decimal|references|json)|(has_many|has_one|belongs_to|validates) |"fieldname"|"fieldtype"|"options"|^\s+[A-Za-z_]+\s+(String|Int|Float|Boolean|DateTime|Json|Decimal|BigInt|Bytes|[A-Z][A-Za-z]*(\[\])?)\??( |$)|`(json|gorm|db|bson):|private [A-Za-z<>]+ [a-z][A-Za-z]*;|public [A-Za-z<>?]+ [A-Z][A-Za-z]* *\{ *get|selection *=|choices *=|^\s*enum |^\s*(async +)?(def|function|func) +[a-z_][A-Za-z0-9_]*|^\s*(public|private|protected|static) +[^=;]*\(|@api\.|^\s+[a-z][A-Za-z0-9_]*\??: *[A-Z][A-Za-z<>\[\]| ]*(;|$)|^\s*(public|protected|private|var) +\$[a-z_]|=> *array\(.type. *=>'
+
+[ $# -ge 2 ] || { sed -n '2,5p' "$0"; exit 2; }
+
+if [ "$1" = --deleted ]; then
+  REPO=$2; export RE=$3; DIR="$CACHE/${REPO//\//__}.git"
+  [ -d "$DIR" ] || git -c gc.auto=0 clone -q --bare --filter=blob:none "https://github.com/$REPO" "$DIR"
+  echo "# $REPO — deleted model files matching /$RE/ (files still present under the same name removed)"
+  # ponytail: -M100% = exact renames only (OID compare, no blob fetch). Plain -M lazily fetches every
+  # blob on a blobless clone: dolibarr never finished. Cost: a rename-with-edits shows as deleted; the commit subject says so.
+  git -C "$DIR" log -M100% --diff-filter=D --name-only --format='@%as %h %s' -- \
+  | awk 'NR==FNR { n=split($0,p,"/"); now[p[n]]=1; next }
+         /^@/ { hdr=$0; next }
+         { lo=tolower($0) }
+         lo ~ ENVIRON["SKIP"] || lo ~ ENVIRON["NOTMODEL"] || lo !~ ENVIRON["MODELISH"] || lo !~ tolower(ENVIRON["RE"]) { next }
+         { n=split($0,p,"/"); if (!(p[n] in now) && !seen[p[n]]++) print hdr "\t" $0 }' \
+        <(git -C "$DIR" ls-tree -r --name-only HEAD) - \
+  | { grep . || echo "# 0 deleted: nothing removed, or the removed files still exist under the same name"; }
+  exit 0
+fi
+
+REPO=$1; export RE=$2; JSON="$CACHE/${REPO//\//__}.tree.json"
+[ -s "$JSON" ] || gh api "repos/$REPO/git/trees/HEAD?recursive=1" > "$JSON" || { rm -f "$JSON"; echo "ERROR: cannot read tree of $REPO" >&2; exit 1; }
+[ "$(jq -r .truncated "$JSON")" = false ] || echo "# WARNING: $REPO tree TRUNCATED by GitHub — file list incomplete"
+HITS=$(jq -r '.tree[] | select(.type=="blob") | .path' "$JSON" | grep -iE -- "$RE" | grep -viE "$SKIP" || true)
+echo "# $REPO — $(printf '%s' "$HITS" | grep -c .) files match /$RE/"
+printf '%s\n' "$HITS" | grep . | sed 's/^/  /' || echo "  (none — this repo uses another word; widen the regex)"
+# best first: basename matches the regex, then lives in a models dir; migrations last
+MODELS=$(printf '%s\n' "$HITS" | grep -iE "$MODELISH" | grep -iE "$CODE" | grep -viE "$NOTMODEL" | grep -viE '__init__|\.(test|spec)\.|_test\.|\.min\.' \
+  | awk '{ lo=tolower($0); n=split(lo,p,"/"); s=(p[n] ~ tolower(ENVIRON["RE"])) ? 0 : 1
+           s += (lo ~ /(^|[\/._-])(models?|doctype|entities|entity|schemas?|prisma|class)([\/._-])/) ? 0 : (lo ~ /migration/ ? 4 : 2); print s "\t" length(p[n]) "\t" $0 }' \
+  | sort -k1,1n -k2,2n -k3 | cut -f3 | head -"$MAX_FILES" || true)
+for f in $MODELS; do
+  echo; echo "## $f"
+  gh api "repos/$REPO/contents/$f" -H "Accept: application/vnd.github.raw" 2>/dev/null \
+    | grep -nE "$FIELD_RE" | head -"$MAX_LINES" || echo "  (no field/method lines matched)"
+done

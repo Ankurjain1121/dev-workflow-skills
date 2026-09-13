@@ -1,0 +1,19 @@
+{
+  "name": "ponytail-vps",
+  "version": "0.1.0",
+  "description": "Ponytail fork: lazy senior dev mode whose reuse rung searches the whole VPS (all projects, skills, plugins) and copies what already exists before writing anything new.",
+  "author": {
+    "name": "Ankur Jain",
+    "email": "ankurjain1121@gmail.com"
+  },
+  "homepage": "https://github.com/Ankurjain1121/dev-workflow-skills",
+  "repository": "https://github.com/Ankurjain1121/dev-workflow-skills",
+  "license": "MIT",
+  "keywords": [
+    "lazy",
+    "yagni",
+    "reuse",
+    "simplicity",
+    "code-review"
+  ]
+}

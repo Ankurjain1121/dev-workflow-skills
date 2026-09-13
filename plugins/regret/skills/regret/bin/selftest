@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# selftest — needs network + gh. Run after ANY edit to bin/pull. Every past bug was silent (0 rows, exit 0).
+set -u; P="$(dirname "$0")/pull"; fail=0
+ok() { echo "ok   $1"; }; bad() { echo "FAIL $1"; fail=1; }
+OUT=$("$P" odoo/odoo 'crm_lead\.py|crm_stage' 2>&1)
+grep -q '^## addons/crm/models/crm_lead.py' <<<"$OUT" && ok "odoo: picks the real model file" || bad "odoo: model file missing"
+grep -qE 'phone *= *fields\.' <<<"$OUT" && ok "odoo: field lines survive" || bad "odoo: no field lines"
+OUT=$("$P" krayin/laravel-crm 'person' 2>&1)
+grep -q '^## packages/Webkul/Contact/src/Models/Person.php' <<<"$OUT" && ok "laravel: Models/ over Migrations/ and Factories/" || bad "laravel: wrong file order"
+grep -q 'Factories' <<<"$(grep '^## ' <<<"$OUT")" && bad "laravel: factories leaked" || ok "laravel: factories skipped"
+OUT=$("$P" twentyhq/twenty 'opportunit' 2>&1)
+grep -q 'opportunity.workspace-entity.ts' <<<"$OUT" && ok "typescript: *.workspace-entity.ts found" || bad "typescript: entity file missing"
+grep -q 'database/commands' <<<"$(grep '^## ' <<<"$OUT")" && bad "typescript: commands leaked" || ok "typescript: commands skipped"
+grep -qE '^[0-9]+: +closeDate: Date' <<<"$OUT" && ok "typescript: plain class properties survive" || bad "typescript: no class property lines"
+OUT=$("$P" Dolibarr/dolibarr 'bom/class/bom\.class' 2>&1)
+grep -qE "'label' => array\('type'" <<<"$OUT" && ok "php: dolibarr \$fields array lines" || bad "php: no dolibarr field lines"
+grep -qE 'public \$product;' <<<"$OUT" && ok "php: public \$prop lines" || bad "php: no public \$prop lines"
+OUT=$("$P" monicahq/monica 'zzznotaword' 2>&1)
+grep -q '(none' <<<"$OUT" && ok "no match says so instead of silence" || bad "no-match path silent"
+OUT=$("$P" --deleted monicahq/monica 'activity' 2>&1)
+grep -q 'app/Models/Activity.php' <<<"$OUT" && ok "deleted: finds a removed model" || bad "deleted: missed app/Models/Activity.php"
+grep -q 'Controllers' <<<"$OUT" && bad "deleted: controllers leaked" || ok "deleted: controllers skipped"
+"$P" 2>/dev/null; [ $? -eq 2 ] && ok "usage exits 2" || bad "usage exit code"
+exit $fail

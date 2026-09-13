@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+"""assemble — Step 6. Joins docs/regret/<module>.md + graveyard files into docs/regret/SPEC.md.
+usage: assemble <docs/regret dir> <dir with grave-*.txt> "<domain line>" "<repos line>" slug:Title:regex [...]
+Deleted files are matched to a module by regex on path; unmatched ones go in their own table."""
+import re,sys,datetime,pathlib
+D=pathlib.Path(sys.argv[1]); S=pathlib.Path(sys.argv[2]); domain=sys.argv[3]; repos=sys.argv[4]
+mods=[a.split(":",2) for a in sys.argv[5:]]
+grave=[]
+for f in sorted(S.glob("grave-*.txt")):
+    repo=f.name[6:-4].replace("__","/")
+    for ln in f.read_text().splitlines():
+        if ln.startswith("@"):
+            hdr,path=ln.split("\t",1); date,commit,subj=hdr[1:].split(" ",2); grave.append((repo,date,commit,subj,path))
+graves=", ".join(sorted({g[0] for g in grave})) or "none run"
+out=[f"# {D.parent.parent.name} — spec sheet\n\nDomain: {domain}\nDate: {datetime.date.today()} IST. Built by /regret v3.\n\nRepos read: {repos}\nGraveyard (built then deleted): {graves}.\n`In` = how many of the 5 repos have it. Nothing is cut here. You cut.\n"]
+used=set(); tot_f=tot_feat=five=ndel=0
+row=lambda g: f"| {g[0]} | {g[1]} | `{g[4]}` | {g[3]} |"
+for slug,title,rx in mods:
+    txt=(D/f"{slug}.md").read_text().rstrip(); sec=None
+    for ln in txt.splitlines():
+        if ln.startswith("## "): sec=ln[3:].lower()
+        elif ln.startswith("| ") and not re.match(r"\|\s*-",ln) and not re.search(r"\| *(Field|Feature|Metric|Screen|Entity|Filter)\b",ln):
+            if sec and sec.startswith("field"): tot_f+=1
+            if sec and sec.startswith("feature"): tot_feat+=1
+            if "| 5/5 |" in ln: five+=1
+    dead=[(i,g) for i,g in enumerate(grave) if i not in used and re.search(rx,g[4].lower())]
+    used.update(i for i,_ in dead); ndel+=len(dead)
+    body="| Repo | When | File | Commit subject |\n|---|---|---|---|\n"+"\n".join(row(g) for _,g in dead) if dead else "_nothing deleted in the graveyard repos_"
+    out.append("\n---\n\n"+txt+"\n\n## Deleted (built, then removed)\n"+body+"\n")
+rest=[g for i,g in enumerate(grave) if i not in used]
+if rest: out.append("\n---\n\n## Deleted — not matched to a module\n| Repo | When | File | Commit subject |\n|---|---|---|---|\n"+"\n".join(row(g) for g in rest)+"\n")
+out.append(f"\n---\n\n## Totals\n\n| Modules | Field rows | Feature rows | Rows at 5/5 | Deleted-file rows |\n|---|---|---|---|---|\n| {len(mods)} | {tot_f} | {tot_feat} | {five} | {ndel} |\n")
+(D/"SPEC.md").write_text("".join(out))
+print(f"SPEC.md: {len(mods)} modules, {tot_f} field rows, {tot_feat} feature rows, {five} at 5/5, {ndel} deleted files ({len(rest)} unmatched)")

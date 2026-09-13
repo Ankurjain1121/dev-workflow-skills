@@ -1,0 +1,515 @@
+#!/usr/bin/env bash
+# redact — a fail-closed secret redaction filter.
+#
+#   stdin  -> text
+#   stdout -> redacted text (NOTHING AT ALL on any error)
+#   stderr -> a report of how many secrets were redacted, per family
+#
+# EXIT CODES (distinct, and the whole point of this tool):
+#   0  success: text was clean, OR text was redacted. stderr says which
+#      ("redact: total=0" vs "redact: total=N").
+#   1  --strict only: at least one secret was found. The redacted text is
+#      still written to stdout, so a caller can use the exit code as a GATE:
+#         if redact --strict < candidate > /tmp/safe; then install /tmp/safe; fi
+#   2  usage error (unknown flag). Nothing on stdout.
+#   3  INTERNAL FAILURE (fail closed). Nothing on stdout. This is the one
+#      code that means "do not trust me": bad engine, unreadable input,
+#      binary input, or any invariant violation.
+#
+# FAIL CLOSED is the contract. All output is buffered to a temp file and only
+# copied to stdout after every postcondition has been checked. There is no code
+# path that streams partially redacted text to stdout and then fails.
+#
+# Engine: one POSIX-awk program (run under LC_ALL=C), so byte handling is
+# deterministic. Replacement markers are fixed literals; no part of a matched
+# secret is ever echoed.
+#
+# TEST SEAM: REDACT_FAIL_MODE=1 forces the internal-failure path, so selftest
+# can prove fail-closed without corrupting the script. It is never set by the
+# tool itself.
+#
+# shellcheck disable=SC2016
+
+set -uo pipefail
+
+EXIT_OK=0
+EXIT_STRICT=1
+EXIT_USAGE=2
+EXIT_INTERNAL=3
+
+STRICT=0
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --strict) STRICT=1 ;;
+    -h|--help)
+      cat <<'USAGE'
+usage: redact [--strict]
+
+  Reads text on stdin, writes redacted text on stdout, and reports the count
+  of redacted secrets on stderr.
+
+  --strict   exit 1 if any secret was found (redacted text is still written),
+             so the exit code can be used as a gate before writing a file.
+
+exit codes: 0 ok/clean/redacted   1 strict gate   2 usage   3 internal failure
+On exit 3 (and 2) stdout is empty.
+USAGE
+      exit "$EXIT_OK"
+      ;;
+    *)
+      printf 'redact: unknown option: %s\n' "$1" >&2
+      exit "$EXIT_USAGE"
+      ;;
+  esac
+  shift
+done
+
+TMP=""
+cleanup() { [ -n "$TMP" ] && rm -rf "$TMP"; }
+trap cleanup EXIT INT TERM HUP
+
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/redact.XXXXXX")" || {
+  printf 'redact: cannot create temp dir\n' >&2
+  exit "$EXIT_INTERNAL"
+}
+
+fail() { printf 'redact: %s\n' "$1" >&2; exit "$EXIT_INTERNAL"; }
+
+# GNU awk is required for RT (exact record terminators) and PROCINFO. Prefer it
+# by name; if only another awk exists the engine itself fails closed.
+AWK_BIN="$(command -v gawk 2>/dev/null || command -v awk 2>/dev/null || true)"
+[ -n "$AWK_BIN" ] || fail "no awk interpreter found"
+
+# ---------------------------------------------------------------------------
+# 1. Buffer stdin with `cat`, not awk. awk silently SKIPS a directory on stdin
+#    and exits 0, which would read as "empty and clean"; `cat` fails loudly, and
+#    it also fails closed on a closed/dead stdin. Nothing is emitted yet.
+# ---------------------------------------------------------------------------
+if ! cat > "$TMP/in"; then
+  fail "cannot read stdin"
+fi
+
+if [ "${REDACT_FAIL_MODE:-0}" = "1" ]; then
+  fail "forced internal failure (REDACT_FAIL_MODE=1)"
+fi
+
+# ---------------------------------------------------------------------------
+# 2. The engine, held in a shell variable (no temp file, no extra process).
+# ---------------------------------------------------------------------------
+IFS= read -r -d '' PROG <<'AWK' || true
+# redact engine. Line oriented. Ordered substitutions. Counts every real
+# replacement so that a second pass over redacted text reports zero.
+#
+# Counting note: `total` and `cnt[]` are incremented ONLY where a replacement is
+# actually made. Every guard that leaves already-redacted text alone therefore
+# also leaves the count alone, which is what makes --strict idempotent.
+
+BEGIN {
+  # This engine relies on two GNU awk features: RT (the exact record
+  # terminator, so a missing final newline and CRLF both survive byte-exact)
+  # and PROCINFO. Refuse to run on a different awk rather than silently emit
+  # text with the newlines stripped.
+  if (!("platform" in PROCINFO)) {
+    print "redact: GNU awk (gawk) is required" > "/dev/stderr"
+    unsupported = 1
+  }
+  # Family order for the deterministic report.
+  ORDER[1]  = "aws_key"
+  ORDER[2]  = "google_key"
+  ORDER[3]  = "stripe_key"
+  ORDER[4]  = "openai_key"
+  ORDER[5]  = "github_token"
+  ORDER[6]  = "slack_token"
+  ORDER[7]  = "twilio_key"
+  ORDER[8]  = "sendgrid_key"
+  ORDER[9]  = "secret"
+  ORDER[10] = "high_entropy"
+  ORDER[11] = "jwt"
+  ORDER[12] = "private_key"
+  ORDER[13] = "credentials"
+  ORDER[14] = "auth"
+  NFAM = 14
+  total = 0
+  bytes = 0
+  nulbad = 0
+}
+
+function bump(fam) { total++; cnt[fam]++ }
+
+# is_exempt: values that are NOT secrets, so assignments to them are left
+# byte-identical and uncounted. Keeps the "no false positives" contract:
+# git SHA, sha/package-lock hash, UUID, data URI, variable reference, integer,
+# boolean, and our own marker (idempotence). A value containing "://" belongs to
+# the connection-string family, which redacts only the credential portion.
+function is_exempt(v) {
+  if (v ~ /^\[REDACTED:/)       return 1
+  if (v ~ /^\$[A-Za-z_{]/)      return 1   # $VAR / ${VAR}; $2y$ bcrypt is NOT exempt
+  if (v ~ /^-?[0-9]+(\.[0-9]+)?$/) return 1
+  if (v ~ /^[0-9a-fA-F]{40}$/)  return 1
+  if (v ~ /^[0-9a-fA-F]{64}$/)  return 1
+  if (v ~ /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/) return 1
+  if (v ~ /^sha(1|256|384|512)[-:]/) return 1
+  if (v ~ /^[Dd][Aa][Tt][Aa]:/) return 1
+  if (v ~ /^(true|false|null|none|nil|undefined)$/) return 1
+  if (v ~ /^(string|number|integer|int|float|double|bool|boolean|any|object|array|bytes|byte|str|text|char|unknown|never|void)$/) return 1
+  if (index(v, "://") > 0)      return 1
+  # A value that STARTS like a filesystem path is a path, not a secret.
+  if (v ~ /^[~.\/]/ || v ~ /^[A-Za-z]:[\\\/]/) return 1
+  return 0
+}
+
+# fixed: replace every bounded occurrence of a fixed-prefix token with marker.
+# Boundaries are checked by hand because POSIX awk has no \b and the token
+# classes here are all [A-Za-z0-9_].
+function fixed(line, re, marker, fam,    out, tok, rs, rl, pre, post) {
+  out = ""
+  while (match(line, re)) {
+    rs = RSTART; rl = RLENGTH
+    tok = substr(line, rs, rl)
+    pre = (rs > 1) ? substr(line, rs - 1, 1) : ""
+    post = substr(line, rs + rl, 1)
+    if ((pre  != "" && pre  ~ /[A-Za-z0-9_]/) ||
+        (post != "" && post ~ /[A-Za-z0-9_]/)) {
+      out  = out substr(line, 1, rs + rl - 1)   # keep the rejected token
+      line = substr(line, rs + rl)
+      continue
+    }
+    out  = out substr(line, 1, rs - 1) marker
+    line = substr(line, rs + rl)
+    bump(fam)
+  }
+  return out line
+}
+
+# conns: scheme://user:pass@host -> scheme://[REDACTED:CREDENTIALS]@host.
+# Only the userinfo is touched; scheme and host are preserved byte-for-byte.
+function conns(line,    out, tok, rs, rl, p, userinfo) {
+  out = ""
+  while (match(line, /[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\/@[:space:]]*:[^\/@[:space:]]*@/)) {
+    rs = RSTART; rl = RLENGTH
+    tok = substr(line, rs, rl)
+    p = index(tok, "://")
+    userinfo = substr(tok, p + 3, rl - (p + 2) - 1)
+    if (userinfo ~ /^\[REDACTED:/) {
+      out = out substr(line, 1, rs + rl - 1)     # idempotence: leave it, do not count
+    } else {
+      out = out substr(line, 1, rs - 1) substr(tok, 1, p + 2) "[REDACTED:CREDENTIALS]@"
+      bump("credentials")
+    }
+    line = substr(line, rs + rl)
+  }
+  return out line
+}
+
+# auth: Authorization: Bearer <token> / Basic <base64>. Keeps the header name
+# and the scheme word; replaces only the credential.
+function auth(line,    out, tok, rs, rl, b, pre) {
+  out = ""
+  while (match(line, /[Aa]uthorization["']?[[:space:]]*:[[:space:]]*["']?[Bb]earer[[:space:]]+[A-Za-z0-9._~+\/-]+=*/)) {
+    rs = RSTART; rl = RLENGTH
+    tok = substr(line, rs, rl)
+    b = match(tok, /[Bb]earer[[:space:]]+/)
+    pre = substr(tok, 1, b + RLENGTH - 1)
+    out  = out substr(line, 1, rs - 1) pre "[REDACTED:TOKEN]"
+    line = substr(line, rs + rl)
+    bump("auth")
+  }
+  while (match(line, /[Aa]uthorization["']?[[:space:]]*:[[:space:]]*["']?[Bb]asic[[:space:]]+[A-Za-z0-9+\/=]+/)) {
+    rs = RSTART; rl = RLENGTH
+    tok = substr(line, rs, rl)
+    b = match(tok, /[Bb]asic[[:space:]]+/)
+    pre = substr(tok, 1, b + RLENGTH - 1)
+    out  = out substr(line, 1, rs - 1) pre "[REDACTED:BASIC]"
+    line = substr(line, rs + rl)
+    bump("auth")
+  }
+  return out line
+}
+
+# jwtok: split the three segments and apply the accept rule. The bare
+# three-segment ERE also matches 1.2.3, IPv4 quads, dotted hostnames and
+# PascalCase namespaces, so length/shape gates are mandatory.
+#   Path A: every real compact JWS/JWT starts with eyJ (base64url of '{"').
+#   Path B: strict safety net for exotic non-eyJ blobs: all segments >= 8,
+#           total >= 40, and at least one digit and one uppercase letter.
+function jwtok(tok,    p1, p2, n1, n2, n3, tot) {
+  p1 = index(tok, ".")
+  p2 = p1 + index(substr(tok, p1 + 1), ".")
+  if (p1 < 1 || p2 <= p1) return 0
+  n1 = p1 - 1
+  n2 = p2 - p1 - 1
+  n3 = length(tok) - p2
+  tot = length(tok)
+  if (substr(tok, 1, 3) == "eyJ" && n1 >= 6 && n2 >= 2 && n3 >= 2 && tot >= 16) return 1
+  if (n1 >= 8 && n2 >= 8 && n3 >= 8 && tot >= 40 && tok ~ /[0-9]/ && tok ~ /[A-Z]/) return 1
+  return 0
+}
+
+function jwt(line,    out, rest, tok, rs, rl, pre, post) {
+  out = ""; rest = line
+  while (match(rest, /[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/)) {
+    rs = RSTART; rl = RLENGTH
+    tok = substr(rest, rs, rl)
+    pre  = (rs > 1) ? substr(rest, rs - 1, 1) : ""
+    post = substr(rest, rs + rl, 1)
+    # Reject when glued to a longer dotted run (IPv4, 4-segment names) and when
+    # the shape gates fail. Advance ONE byte so a rejected candidate cannot
+    # hide a real token that starts inside it.
+    if ((pre  != "" && pre  ~ /[A-Za-z0-9_.-]/) ||
+        (post != "" && post ~ /[A-Za-z0-9_.-]/) ||
+        !jwtok(tok)) {
+      out  = out substr(rest, 1, rs)      # keep one byte of the rejected match
+      rest = substr(rest, rs + 1)
+      continue
+    }
+    out  = out substr(rest, 1, rs - 1) "[REDACTED:JWT]"
+    rest = substr(rest, rs + rl)
+    bump("jwt")
+  }
+  return out rest
+}
+
+# ent_ok: the high-entropy gate. A value qualifies only when it is long enough,
+# has enough distinct bytes, draws from at least two character classes, has a
+# digit or symbol, and is not a slug phrase (no-uppercase kebab/snake words).
+function ent_ok(v, minlen,    i, ch, nd, lo, up, dg, ot, sep) {
+  if (length(v) < minlen) return 0
+  nd = 0; lo = 0; up = 0; dg = 0; ot = 0; sep = 0
+  for (i = 1; i <= length(v); i++) {
+    ch = substr(v, i, 1)
+    if (index(substr(v, 1, i - 1), ch) == 0) nd++
+    if (ch ~ /[a-z]/)      lo = 1
+    else if (ch ~ /[A-Z]/) up = 1
+    else if (ch ~ /[0-9]/) dg = 1
+    else { ot = 1; if (ch == "-" || ch == "_") sep++ }
+  }
+  if (nd < MINDIST) return 0
+  if ((lo + up + dg + ot) < 2) return 0
+  if (!(dg || ot)) return 0
+  if (!up && sep >= 2) return 0
+  return 1
+}
+
+# assign: redact the VALUE of a key/separator/value construct, keeping the key,
+# separator and quoting. keyre is a lowercase ERE matched against a lowercased
+# copy of the text; offsets index the original because ASCII tolower() is
+# length-preserving.
+#   needent=1 turns on the high-entropy gate (ent_ok) with minimum length minlen.
+# A rejected candidate is kept verbatim and scanning resumes AFTER the key, so
+# we can never loop or drop text.
+function assign(line, keyre, marker, fam, minlen, needent,    head, rest, low, rs, rl, firstc, kstart, keyend, j, c, q, vs, ve, closed, after, val, vend, suffix, before, i) {
+  head = ""; rest = line
+  while (1) {
+    low = tolower(rest)
+    if (!match(low, keyre)) break
+    rs = RSTART; rl = RLENGTH
+    firstc = substr(rest, rs, 1)
+    kstart = (firstc ~ /[^A-Za-z0-9_]/) ? rs + 1 : rs
+    keyend = rs + rl - 1
+    # A key glued to a path ("/etc/passwd: ...") is a filename, not a secret.
+    if (kstart > 1 && substr(rest, kstart - 1, 1) == "/") {
+      head = head substr(rest, 1, keyend); rest = substr(rest, keyend + 1); continue
+    }
+    j = keyend + 1
+    if (substr(rest, j, 1) == "\"" || substr(rest, j, 1) == "'") j++
+    while (substr(rest, j, 1) == " " || substr(rest, j, 1) == "\t") j++
+    c = substr(rest, j, 1)
+    # Reject comparisons and arrows: ==, =>, :: and anything that is not = or :.
+    if (c == "=" && (substr(rest, j + 1, 1) == "=" || substr(rest, j + 1, 1) == ">")) {
+      head = head substr(rest, 1, keyend); rest = substr(rest, keyend + 1); continue
+    }
+    if (c == ":" && substr(rest, j + 1, 1) == ":") {
+      head = head substr(rest, 1, keyend); rest = substr(rest, keyend + 1); continue
+    }
+    if (c != "=" && c != ":") {
+      head = head substr(rest, 1, keyend); rest = substr(rest, keyend + 1); continue
+    }
+    # Prose guard, ':' only: `the token: foo` is a sentence, not an assignment.
+    # The key must start the line, be indented, or follow a structural char.
+    if (c == ":") {
+      before = substr(rest, 1, kstart - 1)
+      sub(/[ \t]+$/, "", before)
+      if (before != "" && substr(before, length(before), 1) !~ /["'{([\-_]/) {
+        head = head substr(rest, 1, keyend); rest = substr(rest, keyend + 1); continue
+      }
+    }
+    if (c == ":" && substr(rest, j + 1, 1) == "=") j++   # := is one separator
+    j++
+    while (substr(rest, j, 1) == " " || substr(rest, j, 1) == "\t") j++
+    q = substr(rest, j, 1)
+    suffix = ""
+    if (q == "\"" || q == "'") {
+      vs = j + 1; ve = vs; closed = 0
+      while (ve <= length(rest)) {
+        if (substr(rest, ve, 1) == q) { closed = 1; break }
+        ve++
+      }
+      if (closed) { after = ve;           val = substr(rest, vs, ve - vs) }
+      else        { after = length(rest) + 1; val = substr(rest, vs) }
+    } else {
+      vs = j; ve = vs
+      # Unquoted values end at whitespace or structural punctuation, so a query
+      # tail or a shell pipe is not swallowed into the secret.
+      while (ve <= length(rest) && substr(rest, ve, 1) !~ /[ \t,;&|)\]}>]/) ve++
+      after = ve
+      vend = ve - 1
+      # Keep trailing shell/JSON punctuation OUT of the secret and in the output.
+      while (vend >= vs && substr(rest, vend, 1) ~ /[;,)\]}>]/) vend--
+      val = substr(rest, vs, vend - vs + 1)
+      suffix = substr(rest, vend + 1, ve - vend - 1)
+    }
+    if (val == "" || is_exempt(val)) {
+      head = head substr(rest, 1, keyend); rest = substr(rest, keyend + 1); continue
+    }
+    if (needent && !ent_ok(val, minlen)) {
+      head = head substr(rest, 1, keyend); rest = substr(rest, keyend + 1); continue
+    }
+    head = head substr(rest, 1, vs - 1) marker suffix
+    rest = substr(rest, after)
+    bump(fam)
+  }
+  return head rest
+}
+
+BEGIN { MINDIST = 10 }
+
+{
+  line = $0
+  term = RT                 # the exact bytes that ended this record ("" at EOF)
+  bytes += length($0) + length(term)
+  if (unsupported) { exit 3 }
+  # Binary input has no defined text semantics. Detect a NUL and fail closed;
+  # the partial output file is discarded by the wrapper.
+  if ($0 ~ /\x00/) { nulbad = 1; exit 3 }
+  low  = tolower(line)
+
+  # --- Family 3: private key blocks, a multi-line state machine ------------
+  # BEGIN must be anchored (optionally indented) so prose that merely mentions
+  # the header cannot open a runaway block that swallows the rest of the file.
+  # A single line carrying BOTH markers (escaped/inline PEM) is redacted whole.
+  if (in_pk) {
+    if (low ~ /-----end .*private key.*-----/) in_pk = 0
+    next
+  }
+  if (low ~ /^[[:space:]]*-----begin .*private key.*-----/) {
+    bump("private_key")
+    if (low !~ /-----end .*private key.*-----/) in_pk = 1
+    printf "[REDACTED:PRIVATE_KEY]%s", term
+    next
+  }
+  if (low ~ /-----begin .*private key.*-----/ &&
+      low ~ /-----end .*private key.*-----/) {
+    bump("private_key")
+    printf "[REDACTED:PRIVATE_KEY]%s", term
+    next
+  }
+
+  # --- ordered per-line families ------------------------------------------
+  # auth before jwt: a Bearer JWT keeps its header context.
+  # conns before assign: the host must survive for connection strings.
+  # fixed before assign: so the specific provider marker wins.
+  line = auth(line)
+  line = conns(line)
+  line = jwt(line)
+
+  line = fixed(line, "AKIA[0-9A-Z]{16}", "[REDACTED:AWS_KEY]", "aws_key")
+  line = fixed(line, "ASIA[0-9A-Z]{16}", "[REDACTED:AWS_KEY]", "aws_key")
+  line = fixed(line, "AIza[0-9A-Za-z_-]{35}", "[REDACTED:GOOGLE_KEY]", "google_key")
+  line = fixed(line, "GOCSPX-[A-Za-z0-9_-]{20,}", "[REDACTED:GOOGLE_KEY]", "google_key")
+  line = fixed(line, "sk_live_[0-9A-Za-z]{16,}", "[REDACTED:STRIPE_KEY]", "stripe_key")
+  line = fixed(line, "sk_test_[0-9A-Za-z]{16,}", "[REDACTED:STRIPE_KEY]", "stripe_key")
+  line = fixed(line, "rk_live_[0-9A-Za-z]{16,}", "[REDACTED:STRIPE_KEY]", "stripe_key")
+  line = fixed(line, "rk_test_[0-9A-Za-z]{16,}", "[REDACTED:STRIPE_KEY]", "stripe_key")
+  line = fixed(line, "sk-proj-[A-Za-z0-9_-]{20,}", "[REDACTED:OPENAI_KEY]", "openai_key")
+  line = fixed(line, "sk-ant-[A-Za-z0-9_-]{20,}", "[REDACTED:OPENAI_KEY]", "openai_key")
+  line = fixed(line, "sk-svcacct-[A-Za-z0-9_-]{20,}", "[REDACTED:OPENAI_KEY]", "openai_key")
+  line = fixed(line, "sk-[A-Za-z0-9]{20,}", "[REDACTED:OPENAI_KEY]", "openai_key")
+  line = fixed(line, "ghp_[A-Za-z0-9]{36}", "[REDACTED:GITHUB_TOKEN]", "github_token")
+  line = fixed(line, "gho_[A-Za-z0-9]{36}", "[REDACTED:GITHUB_TOKEN]", "github_token")
+  line = fixed(line, "ghs_[A-Za-z0-9]{36}", "[REDACTED:GITHUB_TOKEN]", "github_token")
+  line = fixed(line, "ghu_[A-Za-z0-9]{36}", "[REDACTED:GITHUB_TOKEN]", "github_token")
+  line = fixed(line, "ghr_[A-Za-z0-9]{36}", "[REDACTED:GITHUB_TOKEN]", "github_token")
+  line = fixed(line, "github_pat_[A-Za-z0-9_]{22,}", "[REDACTED:GITHUB_TOKEN]", "github_token")
+  line = fixed(line, "xox[baprs]-[A-Za-z0-9-]{10,}", "[REDACTED:SLACK_TOKEN]", "slack_token")
+  line = fixed(line, "AC[0-9a-f]{32}", "[REDACTED:TWILIO_KEY]", "twilio_key")
+  line = fixed(line, "SK[0-9a-f]{32}", "[REDACTED:TWILIO_KEY]", "twilio_key")
+  line = fixed(line, "SG\\.[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{20,}", "[REDACTED:SENDGRID_KEY]", "sendgrid_key")
+
+  # Family 2: canonical secret assignments. The key is the WHOLE identifier,
+  # so a keyword after an underscore (db_password, my_api_key) is caught; the
+  # pattern is intentionally not anchored to the keyword alone.
+  line = assign(line, "(^|[^a-z0-9_])([a-z0-9_]*)(password|passwd|passphrase|secret|token|api[_-]?key|apikey|private[_-]?key|access[_-]?key|secret[_-]?key|auth[_-]?token|client[_-]?secret|encryption[_-]?key|signing[_-]?key|aws_secret_access_key)([a-z0-9_]*)", "[REDACTED:SECRET]", "secret", 0, 0)
+
+  # Family 7: high-entropy fallback for non-canonical key names (MIN length 32,
+  # >= MINDIST distinct bytes). Canonical names were already replaced above, so
+  # they are skipped here by the is_exempt() marker guard.
+  line = assign(line, "(^|[^a-z0-9_])([a-z0-9_]*)(key|token|secret|pass)([a-z0-9_]*)", "[REDACTED:HIGH_ENTROPY]", "high_entropy", 32, 1)
+
+  printf "%s%s", line, term
+}
+
+END {
+  if (nulbad || unsupported) exit 3
+  detail = ""
+  for (i = 1; i <= NFAM; i++) {
+    f = ORDER[i]
+    if (cnt[f] > 0) detail = detail (detail == "" ? "" : " ") f "=" cnt[f]
+  }
+  if (detail == "") detail = "none"
+  printf "redact: total=%d\n", total > REPORT
+  printf "redact: %s\n", detail    > REPORT
+  printf "%d\n", total             > TOTAL
+  printf "%d\n", bytes             > INBYTES
+  close(REPORT); close(TOTAL); close(INBYTES)
+}
+AWK
+
+[ -n "$PROG" ] || fail "engine is empty"
+
+# ---------------------------------------------------------------------------
+# 3. Run the engine. stdout is buffered to a file; the count report is written
+#    by the engine's own END block straight to stderr. Nothing reaches the real
+#    stdout until every postcondition below has passed.
+# ---------------------------------------------------------------------------
+LC_ALL=C "$AWK_BIN" -v REPORT="/dev/stderr" -v TOTAL="$TMP/total" -v INBYTES="$TMP/inbytes" \
+  "$PROG" "$TMP/in" > "$TMP/out"
+ARC=$?
+if [ "$ARC" -ne 0 ]; then
+  fail "redaction engine failed (exit $ARC)"
+fi
+
+# ---------------------------------------------------------------------------
+# 4. Postconditions. Any violation -> nothing on stdout, exit 3.
+# ---------------------------------------------------------------------------
+[ -f "$TMP/out" ]     || fail "engine produced no output file"
+[ -f "$TMP/total" ]   || fail "engine produced no count"
+[ -f "$TMP/inbytes" ] || fail "engine produced no byte count"
+
+IN_BYTES=""
+read -r IN_BYTES < "$TMP/inbytes" || true
+case "$IN_BYTES" in
+  ''|*[!0-9]*) fail "engine produced a malformed byte count" ;;
+esac
+if [ "$IN_BYTES" != "0" ] && [ ! -s "$TMP/out" ]; then
+  fail "engine produced empty output for non-empty input"
+fi
+
+TOTAL_N=""
+read -r TOTAL_N < "$TMP/total" || true
+case "$TOTAL_N" in
+  ''|*[!0-9]*) fail "engine produced a malformed count" ;;
+esac
+
+# The engine reproduces each record's exact terminator via RT, so a missing
+# final newline and CRLF endings both survive with no post-processing here.
+
+# ---------------------------------------------------------------------------
+# 5. Commit. Only now does anything reach stdout. The stderr report was already
+#    emitted by the engine's END block.
+# ---------------------------------------------------------------------------
+cat "$TMP/out"
+
+if [ "$STRICT" = "1" ] && [ "$TOTAL_N" -gt 0 ]; then
+  exit "$EXIT_STRICT"
+fi
+exit "$EXIT_OK"
