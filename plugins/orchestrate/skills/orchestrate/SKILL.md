@@ -1,289 +1,167 @@
 ---
 name: orchestrate
-description: Fast parallel execution. One file = One owner. Maximum speed. Supports multi-terminal mode for 10+ files with Claude/Gemini/Qwen.
-argument-hint: "[feature-name] [--multi] [--terminals N]"
+description: Contract-first parallel build on the Workflow tool. Freeze shared contracts, give every file set exactly one owner agent, verify each unit adversarially, then integrate until checks pass. Use for multi-file features that split into disjoint files joined by shared types. Invoking this skill is the opt-in to run a Workflow.
+argument-hint: "[task] [--ultra] [--lane codex|vodax|agy]"
+version: 2.0.0
 ---
 
 # /orchestrate
 
 Arguments: `$ARGUMENTS`
 
-## Mode Detection
+**ONE FILE = ONE OWNER. Owners meet only at frozen contracts.**
 
-| Argument | Mode | Description |
-|----------|------|-------------|
-| (none) | STANDARD | Single context, 4-6 agents |
-| `--multi` | MULTI-TERMINAL | 6 terminals × models, 24+ workers |
-| `--terminals N` | MULTI-TERMINAL | Specify terminal count (default: 6) |
+You (main loop) do the thinking: scout, write contracts, split files, pick lanes.
+The bundled workflow does the typing, verifying and integrating — deterministically.
 
-**Auto-detect MULTI mode when:**
-- 10+ files need modification
-- Task explicitly mentions "heavy" or "parallel"
-- User says "use all terminals" or similar
+## When NOT to use
+
+- Fewer than 3 units, or every file depends on every other → just do it yourself.
+- The design is still open → `/spec` or `/plan` first. Contracts must be decidable now.
 
 ---
 
-## FIRST: Check for Specs
+## Step 1 — Preflight
 
-**If `specs/[feature]/design.md` exists → USE IT as source of truth.**
-
-1. Read `specs/[feature]/design.md` for requirements
-2. Read `specs/[feature]/implementation.md` for progress
-3. Use file assignments from design if specified
-4. After work → update `implementation.md`
-
-**If no specs exist:**
-- For small tasks: proceed without
-- For features: suggest `/spec [name]` first
-
----
-
-## STANDARD MODE (Single Context)
-
-### What I'll Do
-1. **Analyze the task** - Identify files that need editing
-2. **Assign ownership** - Each file/directory gets ONE agent
-3. **Spawn parallel** - All agents in ONE message, background mode
-4. **Verify once** - Type check, lint, test after all complete
-
-### The ONE Rule
-**ONE FILE = ONE OWNER**
-- Before spawning agents, assign file ownership
-- No two agents edit the same file
-- If overlap unavoidable, use single agent instead
-
-### Execution Pattern
-```json
-[
-  {
-    "description": "[workstream name]",
-    "subagent_type": "[appropriate type]",
-    "run_in_background": true,
-    "prompt": "You OWN: [files]. Task: [work]. NO other agent touches these."
-  }
-]
-```
-
-### When to Use Standard Mode
-- Less than 10 files
-- Tightly coupled files that must change together
-- Simple parallel workstreams
-
----
-
-## MULTI-TERMINAL MODE (Multiple Contexts)
-
-### When to Use
-- 10+ files need modification
-- Heavy parallelization needed
-- Want to use different models (Gemini, Qwen) for different tasks
-- Context would bloat in single session
-
-### Architecture
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    /orchestrate --multi                         │
-│                                                                 │
-│  1. Read specs/[feature]/design.md                              │
-│  2. Split work into N packages (one per terminal)               │
-│  3. Assign optimal model per package                            │
-│  4. Spawn N terminals                                           │
-│  5. Each terminal works independently                           │
-│  6. Results merge via specs/implementation.md                   │
-└─────────────────────────────────────────────────────────────────┘
-
-Terminal 1 (Claude)    Terminal 2 (Gemini)   Terminal 3 (Qwen)
-┌─────────────┐       ┌─────────────┐       ┌─────────────┐
-│ Complex     │       │ Research    │       │ Boilerplate │
-│ Logic       │       │ Long context│       │ Simple CRUD │
-│ Architecture│       │ Analysis    │       │ Repetitive  │
-└─────────────┘       └─────────────┘       └─────────────┘
-```
-
-### Model Assignment Strategy
-
-| Model | Best For | Assign When |
-|-------|----------|-------------|
-| **Claude (opus)** | Complex logic, architecture, refactoring | Critical paths, core business logic |
-| **Claude (sonnet)** | General coding, balanced tasks | Most implementation work |
-| **Claude (haiku)** | Simple edits, boilerplate | Config files, simple CRUD |
-| **Gemini** | Research, long context, analysis | Documentation, large file analysis |
-| **Qwen** | Boilerplate, repetitive tasks | Tests, simple components, migrations |
-
-### Work Package Format
-
-Each terminal receives `.claude/packages/[feature]-pkg[N].md`:
-
-```markdown
-# Work Package: [Package Name]
-## Model: [claude-sonnet | gemini | qwen]
-
-## Your Scope
-Files you OWN (only you modify):
-- file1.ts
-- file2.ts
-
-Files you can READ (don't modify):
-- specs/[feature]/design.md
-- shared/types.ts
-
-## Your Tasks
-1. [Specific task]
-2. [Specific task]
-
-## Constraints
-- Follow patterns in design.md
-- When done, append to specs/[feature]/implementation.md:
-  ## [DONE: [Package Name]]
-  - Completed: [what you did]
-  - Files: [files modified]
-- Do NOT modify files outside ownership
-
-## Context
-[Excerpt from design.md relevant to this package]
-```
-
-### Terminal Spawning
-
-**Windows (Windows Terminal):**
-```powershell
-# Claude terminal
-wt -w 0 nt --title "Pkg-1-Claude" cmd /c "claude --prompt .claude/packages/pkg1.md"
-
-# Gemini terminal (if installed)
-wt -w 0 nt --title "Pkg-2-Gemini" cmd /c "gemini --prompt .claude/packages/pkg2.md"
-
-# Qwen terminal (if installed)
-wt -w 0 nt --title "Pkg-3-Qwen" cmd /c "qwen --prompt .claude/packages/pkg3.md"
-```
-
-**Linux/Mac:**
 ```bash
-# Claude
-gnome-terminal --tab --title="Pkg-1" -- claude --prompt .claude/packages/pkg1.md
-
-# Gemini
-gnome-terminal --tab --title="Pkg-2" -- gemini --prompt .claude/packages/pkg2.md
+ROOT=$(git rev-parse --show-toplevel)
+nproc      # Workflow runs min(16, CPUs-2) agents at once
 ```
 
-### Coordination Protocol
+Read if present: `specs/<feature>/design.md`, `.claude/contracts.json` (from `/contracts`), `AGENTS.md`.
+On the default branch → create a branch first. Dirty files you must not lose → commit or stash first.
 
-No direct inter-agent communication. Coordinate via filesystem:
+## Step 2 — Write the contracts
 
-| File | Purpose | Access |
-|------|---------|--------|
-| `specs/[feature]/design.md` | Requirements | Read-only |
-| `specs/[feature]/implementation.md` | Progress | Append-only |
-| `.claude/packages/*.md` | Work packages | Read-only |
-| `.claude/locks/*.lock` | File locks | Create/delete |
+A contract is anything two owners both touch: types, interfaces, function signatures,
+API request/response shapes, DB columns, event names, constants.
 
-### Multi-Terminal Execution Steps
+- Write each as **exact code** in `contracts[].spec`, not prose. Builders never see each other.
+- Prefer **dependency injection** at seams: a consumer takes `deps: { priceOrder: PriceOrder }`
+  typed by the contract, instead of importing the producer's module. The consumer can then
+  be built and tested while the producer is still half-written.
+- Contract files are written by one agent before any builder starts. After that, any change
+  to them is flagged as `protected_files_changed`.
 
-1. **Create packages directory:**
-   ```bash
-   mkdir -p .claude/packages .claude/locks
-   ```
+## Step 3 — Split into units
 
-2. **Generate work packages:**
-   - Analyze task scope
-   - Group files by natural boundaries
-   - Assign model based on task complexity
-   - Write package files
+All paths are **repo-relative files**: no directories, no globs, no `..`. The script rejects anything else.
 
-3. **Create lock files:**
-   ```bash
-   touch .claude/locks/[filename].lock
-   ```
+| Rule | Why |
+|------|-----|
+| A unit owns 1–3 files; its test file goes with its source | one owner per file, tests are not a second owner |
+| A file two units need → make it a contract, or merge the units | the script throws on overlap |
+| Barrels, route registries, DI wiring → one small `wiring` unit with **no check** | all units build at the same time, so wiring cannot be tested mid-build |
+| The test that proves the real pieces fit → put its command in top-level `checks` | `checks` run only after every unit is done |
+| Manifests, lockfiles, migration order → you, before the run | builders are forbidden to touch them |
+| Give each non-wiring unit a scoped `check` (its own test file) | builders must not run whole-repo checks mid-build |
 
-4. **Spawn terminals:**
-   - One terminal per package
-   - Each with assigned model
-   - All start simultaneously
+## Step 4 — Pick lanes (optional)
 
-5. **Monitor progress:**
-   - Watch `specs/[feature]/implementation.md` for updates
-   - Check `.claude/locks/` for completion
+Default lane is `claude`. Only route out when it clearly fits:
 
-6. **Merge results:**
-   - Collect all [DONE] and [BLOCKED] sections
-   - Run final verification (type check, lint, test)
-   - Update implementation.md with summary
+| Lane | agentType | Use for |
+|------|-----------|---------|
+| `claude` | (default) | core logic, anything subtle |
+| `codex` | `codex-driver` | careful single-file, type-driven work |
+| `vodax` | `vodax-driver` | bulk mechanical code, boilerplate |
+| `agy` | `agy-driver` | UI components |
 
----
+Run `bash ~/.claude/skills/dhamaka/bin/preflight.sh` first. Route only to lanes reporting `ok`.
+`DSH_PEAK=yes` → no `vodax`. A dead external-lane agent retries once on claude; the second fix always runs on claude.
+`model` (sonnet / opus / haiku) applies only to the claude lane.
 
-## Model Selection Decision Tree
+## Step 5 — Run
 
-```
-Task received
-├── Complex architecture/refactoring?
-│   └── Claude Opus
-├── Core business logic?
-│   └── Claude Sonnet
-├── Research/analysis/long docs?
-│   └── Gemini
-├── Simple CRUD/boilerplate?
-│   └── Qwen or Claude Haiku
-├── Tests/migrations?
-│   └── Qwen
-└── General implementation?
-    └── Claude Sonnet
+Cost measured on a 4-unit toy repo, 4 CPUs → 2 agents at once: `ultra` = 32 agents, ~2.1M subagent tokens, ~8 min.
+Units never wait on each other, but the concurrency cap is real.
+
+Rigor: `standard` (1 verifier per unit). Use `ultra` (3 lens verifiers — contract / correctness / security —
+plus a completeness critic) when ultracode is on, `--ultra` is passed, or the code touches auth, money or data.
+
+Record the baseline **immediately before** the call, after any manifest edits you made yourself:
+
+```bash
+git -C "$ROOT" status --porcelain --untracked-files=all | cut -c4- | sed 's/.* -> //'
 ```
 
----
+Locate the script (it sits next to this file):
 
-## Output Format
-
-### Standard Mode
-```
-╔═══════════════════════════════════════════════════════╗
-║              ORCHESTRATE - STANDARD                   ║
-╠═══════════════════════════════════════════════════════╣
-║ Task: [description]                                   ║
-║ Files: [count]                                        ║
-║ Agents: [count]                                       ║
-╠═══════════════════════════════════════════════════════╣
-║ Agent 1: [name]     Files: [list]     [✓]            ║
-║ Agent 2: [name]     Files: [list]     [✓]            ║
-╠═══════════════════════════════════════════════════════╣
-║ Status: COMPLETE                                      ║
-╚═══════════════════════════════════════════════════════╝
+```bash
+find ~/.claude/plugins -path '*orchestrate/skills/orchestrate/orchestrate.workflow.js' 2>/dev/null | head -1
 ```
 
-### Multi-Terminal Mode
+Show the user the unit table (key · owns · lane) in one message, then call:
+
 ```
-╔═══════════════════════════════════════════════════════╗
-║           ORCHESTRATE - MULTI-TERMINAL                ║
-╠═══════════════════════════════════════════════════════╣
-║ Feature: [name]                                       ║
-║ Terminals: [N]                                        ║
-║ Models: Claude(3), Gemini(2), Qwen(1)                ║
-╠═══════════════════════════════════════════════════════╣
-║ T1: core-logic       Claude    [✓] 12 files         ║
-║ T2: api-layer        Claude    [✓] 8 files          ║
-║ T3: research         Gemini    [✓] analysis done    ║
-║ T4: components       Claude    [✓] 6 files          ║
-║ T5: tests            Qwen      [✓] 15 files         ║
-║ T6: migrations       Qwen      [✓] 4 files          ║
-╠═══════════════════════════════════════════════════════╣
-║ Status: COMPLETE                                      ║
-║ Total Files: 45                                       ║
-║ Time: 12m 34s                                         ║
-╚═══════════════════════════════════════════════════════╝
+Workflow({
+  scriptPath: "<path>/orchestrate.workflow.js",
+  args: {
+    root: "/abs/repo",
+    goal: "one paragraph",
+    context: "stack, import rules, test runner, house rules the builders need",
+    contracts: [{ file: "src/types/order.ts", spec: "export interface Order { ... }" }],
+    reads: ["package.json"],
+    units: [
+      { key: "pricing", owns: ["src/services/pricing.ts", "test/pricing.test.ts"],
+        task: "exact behaviour + test cases", check: "node --test test/pricing.test.ts" },
+      { key: "format", owns: ["src/format/inr.ts", "test/inr.test.ts"], lane: "codex", task: "...", check: "..." },
+      { key: "wiring", owns: ["src/index.ts"], effort: "low", task: "..." }
+    ],
+    checks: ["npm run -s typecheck", "npm test"],
+    baselineDirty: ["<output of the baseline command>"],
+    rigor: "standard"
+  }
+})
 ```
 
----
+Pass `args` as a JSON object, never a JSON string. Optional per unit: `reads`, `lane`, `model`, `effort`.
+Optional top level: `maxFix` (default 2), `maxIntegrate` (default 2). Both must be integers ≥ 0.
 
-## Error Recovery
+What the workflow does:
 
-See `references/recovery.md` for:
-- Retry patterns
-- Model escalation (Haiku → Sonnet → Opus)
-- Contract change handling
-- Multi-terminal failure recovery
+1. **Contracts** — one agent writes all contract files and returns the frozen signatures. Then it hashes the contract and baseline files.
+2. **Build** — `pipeline` per unit: build → verify → fix (≤ maxFix). Units never wait for each other.
+   A reviewer issue in another unit's file goes to that owner. An issue in a contract becomes a contract gap.
+3. **Integrate** — full `checks`. Each failure is routed to the owner of its **root cause** file.
+   A cause in a contract or an unowned file (tsconfig, manifest) is returned to you, not fanned out.
+   Ultra adds a completeness critic. A final `git status` + hash audit covers every stage.
 
----
+## Step 6 — Act on the result
 
-## Bundled References
+`status` is one of `green` · `unverified` (no checks given) · `needs_work` · `blocked`.
 
-- `references/recovery.md` - Error handling and retry patterns
-- `references/model-strengths.md` - Detailed model comparison for task assignment
+| Field | Do |
+|-------|----|
+| `status: green` | Re-run `checks` yourself and show the real output. Then `/contracts sync`. |
+| `died` | Those units never finished. Re-run them. >50% died → the split is wrong; stop and re-plan. |
+| `contract_gaps` | Fix the contract spec. Commit the first run's work (or add every file it changed to `baselineDirty`), then re-run with the **full** `contracts` list and only the affected units plus their consumers. |
+| `unrouted_failures` | Root cause is in a contract or a file nobody owns — fix it yourself, once. |
+| `open_issues` | Unfixed after maxFix (or `fix_died` on the unit). Fix or re-run those units. |
+| `unreviewed` | A verifier died, so the unit was never fully checked. Re-run it or review it yourself. |
+| `checks: "agent died — unverified"` | Run `checks` yourself before trusting anything. |
+| `ownership.*` | A builder broke ownership or edited a protected file. Inspect the diff. Never auto-revert. |
+
+To resume after editing the script: `Workflow({ scriptPath, resumeFromRunId })` — finished agents return from cache.
+
+## Report format
+
+```
+ORCHESTRATE — <status>   rigor: <standard|ultra>
+unit        owns                          lane    build  verify
+pricing     src/services/pricing.ts +1    claude  done   pass
+format      src/format/inr.ts +1          codex   done   pass
+checks: <passed | N failures>   ownership: <clean | list>   gaps: <none | list>
+```
+
+## Maintaining the script
+
+`node orchestrate.sim.mjs` (next to this file) runs the script against fake agents: dead agents,
+dead checks, root-cause routing, ownership violations. Run it after every edit to the script.
+
+## Fallback — no Workflow tool
+
+(Subagent context, or Workflow disabled.) Send one `Agent` call per unit in a single message, each
+prompt carrying: frozen contracts, `YOU OWN: <files>`, the task, and the same hard rules
+(no whole-repo checks, no manifests, report contract gaps instead of working around them).
+Then run `checks`, `git status`, and review yourself.

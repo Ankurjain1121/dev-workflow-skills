@@ -1,34 +1,30 @@
 # Orchestrate
 
-Multi-agent parallel execution with file ownership.
+Contract-first parallel builds on the Claude Code Workflow tool.
 
 ## Features
-- **One File = One Owner** - No two agents edit the same file
-- **Parallel Execution** - All agents spawn in ONE message
-- **Multi-Terminal Mode** - Support for 10+ files with Claude/Gemini/Qwen
-- **Contract Registry** - Manage type contracts for faster agent assignment
+- **One File = One Owner** — the workflow refuses a plan where two units own the same file
+- **Frozen contracts** — shared types are written first; builders code against them and never edit them
+- **Per-unit pipeline** — build → adversarial verify → fix, with no unit waiting on another
+- **Integration loop** — ownership audit via `git status`, full checks, failures routed back to the owning unit
+- **Lanes** — route a unit to Codex, DeepSeek (vodax) or Antigravity via driver agents
+- **Ultra rigor** — three lens verifiers per unit plus a completeness critic
+- **Contract Registry** — `/contracts` keeps `.claude/contracts.json` for faster planning
 
 ## Usage
 
 ```bash
-# Medium tasks (5-9 files)
-/orchestrate add user authentication with login, signup, password reset
-
-# Large tasks (10+ files)
-/orchestrate --multi build dashboard with charts, filters, export
+/orchestrate add order pricing, INR formatting and a receipt
+/orchestrate --ultra add password reset flow
 ```
 
-## Included Skills
-- `orchestrate` - Main orchestration skill
-- `contracts` - Type contract management (bundled)
+## Included
+- `skills/orchestrate/SKILL.md` — planning steps for the main loop
+- `skills/orchestrate/orchestrate.workflow.js` — the workflow script
+- `skills/contracts/SKILL.md` — contract registry
 
 ## Installation
 
-Enable in your Claude settings:
-```json
-{
-  "enabledPlugins": {
-    "dev-workflow-skills@orchestrate": true
-  }
-}
+```bash
+claude plugin install orchestrate@dev-workflow-skills
 ```

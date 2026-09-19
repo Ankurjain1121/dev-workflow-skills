@@ -41,7 +41,12 @@ Collect and categorize all issues before fixing.
 
 ### Phase 2: Spawn Fixers (Parallel via /orchestrate)
 
-Based on audit results, spawn specialized fixers using `/orchestrate`.
+Based on audit results, spawn specialized fixers using `/orchestrate` (install the `orchestrate`
+plugin — this plugin no longer bundles its own copy).
+
+Note: `/orchestrate` v2 enforces ONE FILE = ONE OWNER. The per-class split below puts several
+fixers in the same file, which it rejects. Either group the fixes per file (one unit per file,
+all class families at once) or run the fixers yourself without `/orchestrate`.
 
 **Fixer Agents:**
 

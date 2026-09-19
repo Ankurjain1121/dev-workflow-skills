@@ -1,7 +1,7 @@
 {
   "name": "orchestrate",
-  "version": "1.0.0",
-  "description": "Multi-agent parallel execution with file ownership. One file = One owner. Maximum speed.",
+  "version": "2.0.0",
+  "description": "Contract-first parallel builds on the Workflow tool. One file = one owner, frozen contracts, per-unit verify, integrate until green.",
   "author": {
     "name": "Ankur Jain",
     "email": "ankurjain1121@gmail.com"
